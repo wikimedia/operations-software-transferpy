@@ -7,3 +7,8 @@ venv
 .idea/
 transferpy/doc/transferpy/
 *.build*
+.pybuild*
+*.eggs*
+debian/transferpy*
+debian/*debhelper*
+debian/files

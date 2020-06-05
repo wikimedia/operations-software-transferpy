@@ -28,7 +28,7 @@ setup(
     entry_points={
         # TODO: Expand
         'console_scripts': [
-            'transferpy = transferpy.transfer:main',
+            'transfer.py = transferpy.transfer:main',
         ],
     },
     test_suite='transferpy.test',

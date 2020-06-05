@@ -1,0 +1,23 @@
+Source: transferpy
+Section: utils
+Priority: optional
+Maintainer: Jaime Crespo <jcrespo@wikimedia.org>
+Build-Depends: debhelper (>= 10), dh-python, python3-all, python3-setuptools, cumin
+Standards-Version: 4.1.2
+Homepage: https://doc.wikimedia.org/transferpy/master
+X-Python3-Version: >= 3.2
+#Vcs-Git: https://anonscm.debian.org/git/python-modules/packages/transferpy.git
+#Vcs-Browser: https://anonscm.debian.org/cgit/python-modules/packages/transferpy.git/
+#Testsuite: autopkgtest-pkg-python
+
+Package: transferpy
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}
+Recommends: mariadb-backup | wmf-mariadb104
+Description: Tool that can move large files over the network and backup mariadb servers
+ transferpy is a Python 3 framework and command-line utility 
+ intended to efficiently move large files or directory trees 
+ between WMF production hosts, as well as to provide a low-level 
+ tool to backup and recover MySQL/MariaDB servers.
+ .
+ This package uses and depends on Python 3 libraries.

@@ -50,6 +50,27 @@ To generate the html documentation under transferpy/doc/.build
 tox -e sphinx
 ```
 
+### Build transferpy Debian package
+
+To generate and install the Debian package
+
+```
+debuild -b -us -uc
+sudo dpkg -i ../transferpy_0.1_amd64.deb
+```
+
+Test the installation
+
+```
+transfer.py --help
+```
+
+To remove the transferpy package
+
+```
+sudo dpkg -r transferpy
+```
+
 ## Code style compliance
 
 To check the code style compliance:
