@@ -1,0 +1,30 @@
+GSoC 2020
+=========
+
+Student: `Ajumal P A`_
+
+- Move the transfer framework to its module named transferpy.
+- Modularize transferpy into three modules and a RemoteExecution:
+
+    * The :any:`Transferer <transferpy.Transferer>` class is responsible for the act on the user arguments and make
+      the send/receive possible.
+    * The :any:`Firewall <transferpy.Firewall>` class is for open/close the ports in the iptables
+      to receive the data by the receiver machines.
+    * :any:`MariaDB <transferpy.MariaDB>`
+    * The :any:`RemoteExecution <transferpy.RemoteExecution.CuminExecution>` is the module responsible for the
+      execution of command on the remote machines.
+
+       + transfer framework mainly uses the Cumin execution.
+
+- Give proper comments to newly created modules.
+- Make `--help` option useful to the user.
+- Make documentation using Sphinx (This).
+- Remove unimportant output of Cumin from the console
+  :any:`CuminExecution.run <transferpy.RemoteExecution.CuminExecution.CuminExecution.run>`
+- Detect a free port automatically on the target machine for the Netcat to listen
+  :any:`Firewall.find_available_port <transferpy.Firewall.Firewall.find_available_port>`.
+- Seperate WMFMariadbpy and transferpy to its own repositories.
+- Make Debian transferpy package.
+
+
+.. _`Ajumal P A`: https://phabricator.wikimedia.org/p/Privacybatm

@@ -21,8 +21,7 @@ tox -e unit
 
 In order to be able to to run the tests you'll need to be able to run the script localy. You'll need to have:
 * A remote machine with *passwordless ssh to root user*.
-* Then assign the variable HOST\_NAME as the remote machince hostname
-  in TestTransfer class of transferpy/test/integration/test\_trasfer.py file.
+* Then assign the variable HOST\_NAME as the remote machine hostname in TestTransfer class of transferpy/test/integration/test\_trasfer.py file.
 
 Then:
 ```
@@ -35,6 +34,20 @@ To run the unit and integration tests and generate a HTML coverage report under 
 
 ```
 tox -e cover
+```
+
+### Documentation
+
+The documentation has been written using Sphinx/rst. Sphinx uses three sources for document generation.
+
+1. comments in the code.
+2. `--help` option of the framework.
+3. `rst` files in transferpy/doc
+
+To generate the html documentation under transferpy/doc/.build
+
+```
+tox -e sphinx
 ```
 
 ## Code style compliance
