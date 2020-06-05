@@ -1,4 +1,4 @@
-"""Utils for testing wmfmariadbpy."""
+"""Utils for testing transferpy."""
 
 import sys
 

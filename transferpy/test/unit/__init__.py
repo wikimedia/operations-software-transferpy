@@ -1,1 +1,1 @@
-"""wmfmariadbpy unit tests."""
+"""transferpy unit tests."""

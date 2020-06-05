@@ -1,20 +1,17 @@
-"""wmfmariadbpy."""
+"""transferpy."""
 from setuptools import setup
 
 setup(
-    name='wmfmariadbpy',
-    description='wmfmariadbpy',
+    name='transferpy',
+    description='Fast tool for transferring files',
     version='0.1',
-    url='https://phabricator.wikimedia.org/diffusion/OSMD/',
+    url='',
     packages=(
-        'wmfmariadbpy',
         'transferpy',
         'transferpy.RemoteExecution'
     ),
     install_requires=[
-        'pymysql',
-        'tabulate',
-        'cumin'
+        'cumin',
     ],
     tests_require=[
         'flake8',
@@ -24,9 +21,8 @@ setup(
     entry_points={
         # TODO: Expand
         'console_scripts': [
-            'osc_host = wmfmariadbpy.osc_host:main',
-            'transfer = transferpy.transfer:main',
+            'transferpy = transferpy.transfer:main',
         ],
     },
-    test_suite='wmfmariadbpy.test',
+    test_suite='transferpy.test',
 )

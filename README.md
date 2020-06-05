@@ -1,4 +1,4 @@
-Collection of Python classes and scripts to operate with MariaDB servers.
+transferpy is a Python 3 framework and command-line utility intended to efficiently move large files or directory trees between WMF production hosts, as well as to provide a low-level tool to backup and recover MySQL/MariaDB servers.
 
 ## Dependencies
 
@@ -11,7 +11,7 @@ tox -e venv -- <some command>
 
 ## Run tests
 
-Tests are located under *wmfmariadbpy/test*. They are split between unit and integration tests. To run unit tests:
+Tests are located under *transferpy/test*. They are split between unit and integration tests. To run unit tests:
 
 ```
 tox -e unit
@@ -20,9 +20,9 @@ tox -e unit
 ### Integration tests requirements
 
 In order to be able to to run the tests you'll need to be able to run the script localy. You'll need to have:
-* A *.my.cnf* file with the proper configuration
-* A MariaDB listening on localhost:3306
-* *pt-online-schema-change* script on your PATH
+* A remote machine with *passwordless ssh to root user*.
+* Then assign the variable HOST\_NAME as the remote machince hostname
+  in TestTransfer class of transferpy/test/integration/test\_trasfer.py file.
 
 Then:
 ```
@@ -47,7 +47,7 @@ tox -e flake8
 
 ## Execution
 
-Only *osc_host.py* and *transfer.py* are included on the setup for now, so the rest of them can be run directly. As for *osc_host.py* and *transfer.py*, the easiest is to run it via the virtualenv `venv`:
+The easiest way to run it is via the virtualenv `venv`:
 ```
-tox -e venv -- osc_host --method=ddl --host=localhost --db=test --table=test "add column test int"
+tox -e venv -- transferpy source_host:source_path destination_host:destination_path
 ```
