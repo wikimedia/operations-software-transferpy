@@ -9,6 +9,7 @@ setup(
     packages=(
         'wmfmariadbpy',
         'transferpy',
+        'transferpy.RemoteExecution'
     ),
     install_requires=[
         'pymysql',
