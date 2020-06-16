@@ -34,6 +34,10 @@ class Transferer(object):
         self.original_size = 0
         self.checksum = None
         self.source_checksum_path = None
+        self.parallel_checksum = None
+        # TODO: Fix concurrency issue with these file names.
+        self.parallel_checksum_source_path = '/tmp/transferrer_source.md5sum'
+        self.parallel_checksum_target_path = '/tmp/transferrer_target.md5sum'
 
         self._password = None
         self.cipher = 'chacha20'
@@ -183,6 +187,34 @@ class Transferer(object):
 
         return decompress_command
 
+    @property
+    def parallel_checksum_source_command(self):
+        """
+        Property: command to make source checksum parallel to the file transfer.
+
+        :return: command to make the checksum
+        """
+        if self.options['parallel_checksum']:
+            checksum_command = '| tee >(md5sum > {})'.format(self.parallel_checksum_source_path)
+        else:
+            checksum_command = ''
+
+        return checksum_command
+
+    @property
+    def parallel_checksum_target_command(self):
+        """
+        Property: command to make target checksum parallel to the file transfer.
+
+        :return: command to make the checksum
+        """
+        if self.options['parallel_checksum']:
+            checksum_command = '| tee >(md5sum > {})'.format(self.parallel_checksum_target_path)
+        else:
+            checksum_command = ''
+
+        return checksum_command
+
     def netcat_send_command(self, target_host):
         netcat_send_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, self.options['port'])
 
@@ -267,41 +299,51 @@ class Transferer(object):
         'target_path' is assumed to be a *directory* and the source file or
         directory will be copied inside.
         """
-
         if self.is_xtrabackup:
-            src_command = ['/bin/bash', '-c', r'"{} {} {} {}"'
+            src_command = ['/bin/bash', '-c', r'"{} {} {} {} {}"'
                            .format(self.xtrabackup_command, self.compress_command,
-                                   self.encrypt_command, self.netcat_send_command(target_host))]
-            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {}"'
+                                   self.parallel_checksum_source_command,
+                                   self.encrypt_command,
+                                   self.netcat_send_command(target_host))]
+            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
                            .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                                   self.parallel_checksum_target_command,
                                    self.decompress_command, self.mbstream_command)]
         elif self.is_decompress:
-            src_command = ['/bin/bash', '-c', r'"{} < {} {} {}"'
-                           .format(self.compress_command, self.source_path, self.encrypt_command,
+            src_command = ['/bin/bash', '-c', r'"{} < {} {} {} {}"'
+                           .format(self.compress_command, self.source_path,
+                                   self.parallel_checksum_source_command,
+                                   self.encrypt_command,
                                    self.netcat_send_command(target_host))]
-            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {}"'
+            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
                            .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                                   self.parallel_checksum_target_command,
                                    self.decompress_command, self.untar_command)]
         elif self.source_is_dir:
             source_parent_dir = os.path.normpath(os.path.join(self.source_path, '..'))
             source_basename = os.path.basename(os.path.normpath(self.source_path))
-            src_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
+            src_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {} {}"'
                            .format(source_parent_dir, self.tar_command,
-                                   source_basename, self.compress_command, self.encrypt_command,
+                                   source_basename, self.compress_command,
+                                   self.parallel_checksum_source_command,
+                                   self.encrypt_command,
                                    self.netcat_send_command(target_host))]
 
-            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {}"'
+            dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
                            .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                                   self.parallel_checksum_target_command,
                                    self.decompress_command, self.untar_command)]
         else:
-            src_command = ['/bin/bash', '-c', r'"{} < {} {} {}"'
-                           .format(self.compress_command, self.source_path, self.encrypt_command,
-                                   self.netcat_send_command(target_host))]
+            src_command = ['/bin/bash', '-c', r'"{} < {} {} {} {}"'
+                           .format(self.compress_command, self.source_path,
+                                   self.parallel_checksum_source_command,
+                                   self.encrypt_command, self.netcat_send_command(target_host))]
 
             final_file = os.path.join(os.path.normpath(target_path),
                                       os.path.basename(self.source_path))
-            dst_command = ['/bin/bash', '-c', r'"{} {} {} > {}"'
+            dst_command = ['/bin/bash', '-c', r'"{} {} {} {} > {}"'
                            .format(self.netcat_listen_command, self.decrypt_command,
+                                   self.parallel_checksum_target_command,
                                    self.decompress_command, final_file)]
 
         job = self.remote_executor.start_job(target_host, dst_command)
@@ -412,6 +454,18 @@ class Transferer(object):
                 return 3
             else:
                 self.logger.info(('Checksum of all original files on {} and the transmitted ones'
+                                  ' on {} match.').format(self.source_host, target_host))
+
+        if self.options['parallel_checksum']:
+            self.parallel_checksum = self.read_checksum(self.source_host, self.parallel_checksum_source_path)
+            target_checksum = self.read_checksum(target_host, self.parallel_checksum_target_path)
+            if self.parallel_checksum != target_checksum:
+                self.logger.error('Original checksum {} on {} is different than checksum {}'
+                                  ' on {}'.format(self.parallel_checksum, self.source_host, target_checksum,
+                                                  target_host))
+                return 3
+            else:
+                self.logger.info(('Parallel checksum of source on {} and the transmitted ones'
                                   ' on {} match.').format(self.source_host, target_host))
 
         # All checks seem right, return success

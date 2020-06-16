@@ -109,6 +109,15 @@ def parse_arguments():
                                 help="Disable checksums")
     parser.set_defaults(checksum=True)
 
+    parallel_checksum_group = parser.add_mutually_exclusive_group()
+    parallel_checksum_group.add_argument('--parallel-checksum', action='store_true', dest='parallel_checksum',
+                                         help="Generate checksum parallel to the transmission for data "
+                                              "integrity check (ignored if --checksum is enabled). "
+                                              "--parallel_checksum is faster than --checksum but less reliable")
+    parallel_checksum_group.add_argument('--no-parallel-checksum', action='store_false', dest='parallel_checksum',
+                                         help="Disable parallel checksum (Default)")
+    parser.set_defaults(parallel_checksum=False)
+
     parser.add_argument('--stop-slave', action='store_true', dest='stop_slave',
                         help="Only relevant if on xtrabackup mode: attempt to stop slave on the mysql instance "
                              "before running xtrabackup, and start slave after it completes to try to speed up "
@@ -163,6 +172,7 @@ def option_parse():
         'compress': True if options.transfer_type == 'decompress' else options.compress,
         'encrypt': options.encrypt,
         'checksum': False if not options.transfer_type == 'file' else options.checksum,
+        'parallel_checksum': False if options.checksum else options.parallel_checksum,
         'stop_slave': False if not options.transfer_type == 'xtrabackup' else options.stop_slave,
         'verbose': options.verbose
     }

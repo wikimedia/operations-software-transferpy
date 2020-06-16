@@ -137,6 +137,22 @@ class TestTransferer(unittest.TestCase):
         command = self.transferer.decrypt_command
         self.assertEqual('', command)
 
+    def test_parallel_checksum_source_and_target_command(self):
+        """Test to check the parallel_checksum command"""
+        self.options['parallel_checksum'] = False
+        src_command = self.transferer.parallel_checksum_source_command
+        trgt_command = self.transferer.parallel_checksum_target_command
+        self.assertEqual('', src_command)
+        self.assertEqual('', trgt_command)
+
+        self.options['parallel_checksum'] = True
+        src_command = self.transferer.parallel_checksum_source_command
+        trgt_command = self.transferer.parallel_checksum_target_command
+        self.assertEqual('| tee >(md5sum > {})'.format(
+            self.transferer.parallel_checksum_source_path), src_command)
+        self.assertEqual('| tee >(md5sum > {})'.format(
+            self.transferer.parallel_checksum_target_path), trgt_command)
+
     def test_run_sanity_checks_failing(self):
         """Test case for Transferer.run function which simulates sanity check failure."""
         with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check:
@@ -337,3 +353,36 @@ class TestArgumentParsing(unittest.TestCase):
         with self.assertRaises(SystemExit) as se:
             split_target(target)
         self.assertEqual(se.exception.code, 2)
+
+    def test_parallel_checksum(self):
+        """Test parallel-checksum param."""
+        base_args = ['transfer', 'source:path', 'target:path']
+        # By default, normal checksum is enabled. So, irrespective of the
+        # --parallel-checksum argument, this option is disabled.
+        parallel_checksum_test_args = base_args + ['--parallel-checksum']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(parallel_checksum_test_args)
+        self.assertTrue(other_options['checksum'])
+        self.assertFalse(other_options['parallel_checksum'])
+
+        no_parallel_checksum_test_args = base_args + ['--no-parallel-checksum']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(no_parallel_checksum_test_args)
+        self.assertTrue(other_options['checksum'])
+        self.assertFalse(other_options['parallel_checksum'])
+
+        # Now disable the normal checksum so that parallel-checksum can take effect
+        base_args = ['transfer', 'source:path', 'target:path', '--no-checksum']
+        # By default, normal checksum is enabled. So, irrespective of the
+        # --parallel-checksum argument, this option is disabled.
+        parallel_checksum_test_args = base_args + ['--parallel-checksum']
+        (source_host, source_path, target_hosts, target_paths, other_options) \
+            = self.option_parse(parallel_checksum_test_args)
+        self.assertFalse(other_options['checksum'])
+        self.assertTrue(other_options['parallel_checksum'])
+
+        no_parallel_checksum_test_args = base_args + ['--no-parallel-checksum']
+        (source_host, source_path, target_hosts, target_paths, other_options) \
+            = self.option_parse(no_parallel_checksum_test_args)
+        self.assertFalse(other_options['checksum'])
+        self.assertFalse(other_options['parallel_checksum'])
