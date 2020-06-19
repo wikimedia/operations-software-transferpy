@@ -21,6 +21,9 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('../../'))
 
+# transferpy.RemoteExecution.ParamikoExecution imports 'paramiko' but there is
+# no point in installing the module just for doc generation. Mock it.
+autodoc_mock_imports = ['paramiko']
 
 # -- General configuration ------------------------------------------------
 
