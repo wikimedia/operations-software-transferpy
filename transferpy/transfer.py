@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import logging
 from transferpy.Transferer import Transferer
 
 
@@ -21,6 +22,22 @@ class RawOption(argparse.HelpFormatter):
         if text.startswith('raw|'):
             return text[4:].splitlines()
         return argparse.HelpFormatter._split_lines(self, text, width)
+
+
+def setup_logger(verbose):
+    logger = logging.getLogger('transferpy')
+    handler = logging.StreamHandler(stream=sys.stdout)
+    if verbose:
+        handler.setLevel(logging.DEBUG)
+    else:
+        handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s  %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
 
 def parse_arguments():
@@ -106,8 +123,9 @@ def split_target(target):
         host, path = target.split(':')
         if host and path:
             return host, path
-    print("ERROR: Source/Destination must contain the fully qualified name of the host"
-          " and absolute path separated by a colon")
+    logger = logging.getLogger('transferpy')
+    logger.error("Source/Destination must contain the fully qualified name of the host"
+                 " and absolute path separated by a colon")
     sys.exit(2)
 
 
@@ -118,6 +136,7 @@ def option_parse():
     :return: sender host, sender path, receiver hosts, receiver paths, other options
     """
     options = parse_arguments().parse_args()
+    setup_logger(options.verbose)
     source_host, source_path = split_target(options.source)
     target_hosts = []
     target_paths = []
