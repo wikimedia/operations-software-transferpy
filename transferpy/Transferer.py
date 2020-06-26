@@ -510,7 +510,12 @@ class Transferer(object):
         # multicast-like process
         for target_host, target_path in zip(self.target_hosts, self.target_paths):
             firewall_handler = Firewall(target_host, self.remote_executor)
-            self.options['port'] = firewall_handler.open(self.source_host, self.options['port'])
+            try:
+                self.options['port'] = firewall_handler.open(self.source_host, self.options['port'])
+            except (ValueError, Exception) as e:
+                self.logger.error("{}".format(str(e)))
+                return [-1]
+
             result = self.copy_to(target_host, target_path)
 
             if firewall_handler.close(self.source_host, self.options['port']) != 0:

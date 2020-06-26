@@ -14,6 +14,7 @@ class Firewall(object):
         self.remote_executor = remote_execution
         self.search_start_port = 4400
         self.search_end_port = 4500
+        self.reserve_port_dir_name = '/tmp/transferpy_{}.lock'
 
     @property
     def find_used_ports_command(self):
@@ -76,8 +77,12 @@ class Firewall(object):
         :return: raises exception if not successful
         """
         # If target port is 0, find a free port automatically
+        # else try to reserve the given port for the transfer
         if target_port == 0:
             target_port = self.find_available_port()
+        elif not self.reserve_port(target_port):
+            raise ValueError("ERROR: The given port {} is not available on {}"
+                             .format(target_port, self.target_host))
 
         command = ['/sbin/iptables', '-A', 'INPUT', '-p', 'tcp', '-s',
                    '{}'.format(source_host),
@@ -101,7 +106,32 @@ class Firewall(object):
                    '--dport', '{}'.format(target_port),
                    '-j', 'ACCEPT']
         result = self.run_command(command)
+        if not self.unreserve_port(target_port):
+            print('WARNING: {} temporary directory could not be deleted'
+                  .format(self.reserve_port_dir_name.format(target_port)))
         return result.returncode
+
+    def reserve_port(self, target_port):
+        """
+        Reserves target port by creating a directory.
+
+        :param target_port: port to be reserved
+        :return: True if reservation is successful
+        """
+        command = ["/bin/mkdir {}".format(self.reserve_port_dir_name.format(target_port))]
+        result = self.run_command(command)
+        return result.returncode == 0
+
+    def unreserve_port(self, target_port):
+        """
+        Removes the reservation for target port by deleting a directory.
+
+        :param target_port: port to be unreserved
+        :return: True if port successfully unreserved
+        """
+        command = ["/bin/rmdir {}".format(self.reserve_port_dir_name.format(target_port))]
+        result = self.run_command(command)
+        return result.returncode == 0
 
     def find_available_port(self):
         """
@@ -121,10 +151,14 @@ class Firewall(object):
             raise ValueError("ERROR: Returned non integer value for used ports "
                              "on {}\n{}".format(self.target_host, str(e)))
 
+        port = 0
         for p in range(self.search_start_port, self.search_end_port):
             if p not in used_ports:
-                port = p
-                break
+                if self.reserve_port(p):
+                    port = p
+                    break
+        if port == 0:
+            raise ValueError("ERROR: Could not find a free port on {}".format(self.target_host))
         return port
 
     def __del__(self):
