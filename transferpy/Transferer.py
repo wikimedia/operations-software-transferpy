@@ -18,8 +18,10 @@ class Transferer(object):
         self.target_hosts = target_hosts
         self.target_paths = target_paths
         self.options = options
-        if 'type' not in options:  # default transfer type is file/directory transfer
-            options['type'] = 'file'
+        if 'type' not in self.options:  # default transfer type is file/directory transfer
+            self.options['type'] = 'file'
+        if 'verbose' not in self.options:  # default to non-verbose output
+            self.options['verbose'] = False
 
         remote_execution_options = {'verbose': self.options['verbose']}
         self.remote_executor = RemoteExecution(remote_execution_options)
