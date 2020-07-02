@@ -61,6 +61,17 @@ class Transferer(object):
         result = self.run_command(host, command)
         return not result.returncode
 
+    def host_exists(self, host):
+        """
+        Checks the availability of given host.
+
+        :param host: host to be checked
+        :return: remote execution run_command result
+        """
+        command = ['/bin/true']
+        result = self.run_command(host, command)
+        return result
+
     def file_exists(self, host, path):
         """
         Returns true if there is a file or a directory with such path on the remote
@@ -283,6 +294,11 @@ class Transferer(object):
         Set of preflight checks for the transfer- raise an exception if
         they are not met.
         """
+        # Does source host exist?
+        result = self.host_exists(self.source_host)
+        if result.returncode != 0:
+            raise ValueError("The specified source host {} does not exist or is unavailable."
+                             .format(self.source_host))
         # Does the source path (file or dir) exist?
         self.source_path = os.path.normpath(self.source_path)
         if not self.file_exists(self.source_host, self.source_path):
@@ -290,8 +306,14 @@ class Transferer(object):
                              .format(self.source_path, self.source_host))
         self.original_size = self.disk_usage(self.source_host, self.source_path,
                                              self.is_xtrabackup)
-        # Does the target dir exist
+
         for target_host, target_path in zip(self.target_hosts, self.target_paths):
+            # Does the target host exist?
+            result = self.host_exists(target_host)
+            if result.returncode != 0:
+                raise ValueError("The specified target host {} does not exist or is unavailable."
+                                 .format(target_host))
+            # Does the target dir exist?
             if not self.file_exists(target_host, target_path):
                 raise ValueError("The specified target path {} doesn't exist on {}"
                                  .format(target_path, target_host))
