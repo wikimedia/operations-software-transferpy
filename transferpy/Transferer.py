@@ -5,6 +5,7 @@ import os
 import os.path
 import re
 import time
+import logging
 
 from transferpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
 from transferpy.Firewall import Firewall
@@ -23,6 +24,7 @@ class Transferer(object):
         if 'verbose' not in self.options:  # default to non-verbose output
             self.options['verbose'] = False
 
+        self.logger = logging.getLogger(__name__)
         remote_execution_options = {'verbose': self.options['verbose']}
         self.remote_executor = RemoteExecution(remote_execution_options)
         self.mariadb = MariaDB(self.remote_executor)
@@ -35,6 +37,8 @@ class Transferer(object):
         self._password = None
         self.cipher = 'chacha20'
         self.buffer_size = 8
+
+        self.logger.debug('Finished Transferer initialization')
 
     def run_command(self, host, command):
         return self.remote_executor.run(host, command)
@@ -67,6 +71,7 @@ class Transferer(object):
         return not result.returncode
 
     def calculate_checksum(self, host, path):
+        self.logger.info('Started checksum calculation for {}:{}'.format(host, path))
         hash_executable = '/usr/bin/md5sum'
         parent_dir = os.path.normpath(os.path.join(path, '..'))
         basename = os.path.basename(os.path.normpath(path))
@@ -80,6 +85,7 @@ class Transferer(object):
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise Exception('md5sum execution failed')
+        self.logger.info('Finished checksum calculation for {}:{}'.format(host, path))
         return result.stdout
 
     def has_available_disk_space(self, host, path, size):
@@ -329,8 +335,8 @@ class Transferer(object):
         """
         # Return code was not 0?
         if result != 0:
-            print('ERROR: Copy from {}:{} to {}:{} failed'
-                  .format(self.source_host, self.source_path, target_host, target_path))
+            self.logger.error('Copy from {}:{} to {}:{} failed'
+                              .format(self.source_host, self.source_path, target_host, target_path))
             return 1
 
         # if creating or restoring a backup, does it include an xtrabackup_info file,
@@ -344,31 +350,31 @@ class Transferer(object):
             check_path = target_final_path
 
         if not self.file_exists(target_host, check_path):
-            print(('ERROR: file was not found on the target path {} after transfer'
-                   ' to {}').format(check_path, target_host))
+            self.logger.error(('file was not found on the target path {} after transfer'
+                               ' to {}').format(check_path, target_host))
             return 2
 
         # Is original and final size the same? Otherwise throw a warning
         final_size = self.disk_usage(target_host, target_final_path)
         if self.original_size != final_size:
-            print('WARNING: Original size is {} but transferred size is {} for'
-                  ' copy to {}'.format(self.original_size, final_size, target_host))
+            self.logger.warning('Original size is {} but transferred size is {} '
+                                'for copy to {}'.format(self.original_size, final_size, target_host))
 
         # Was checksum requested, and does it match the original?
         if self.options['checksum']:
             target_checksum = self.calculate_checksum(target_host, target_final_path)
             if self.checksum != target_checksum:
-                print('ERROR: Original checksum {} on {} is different than checksum {}'
-                      ' on {}'.format(self.checksum, self.source_host, target_checksum,
-                                      target_host))
+                self.logger.error('Original checksum {} on {} is different than checksum '
+                                  '{} on {}'.format(self.checksum, self.source_host,
+                                                    target_checksum, target_host))
                 return 3
             else:
-                print(('Checksum of all original files on {} and the transmitted ones'
-                       ' on {} match.').format(self.source_host, target_host))
+                self.logger.info(('Checksum of all original files on {} and the transmitted ones'
+                                  ' on {} match.').format(self.source_host, target_host))
 
         # All checks seem right, return success
-        print('{} bytes correctly transferred from {} to {}'
-              .format(final_size, self.source_host, target_host))
+        self.logger.info('{} bytes correctly transferred from {} to {}'
+                         .format(final_size, self.source_host, target_host))
         return 0
 
     def run(self):
@@ -382,20 +388,20 @@ class Transferer(object):
         try:
             self.sanity_checks()
         except ValueError as e:
-            print("ERROR: {}".format(str(e)))
+            self.logger.error("{}".format(str(e)))
             return [-1]
 
         # stop slave if requested
         if self.options.get('stop_slave', False):
             result = self.mariadb.stop_replication(self.source_host, self.source_path)
             if result != 0:
-                print("ERROR: Stop slave failed")
+                self.logger.error("Stop slave failed")
                 return [-2]
 
-        print('About to transfer {} from {} to {}:{} ({} bytes)'
-              .format(self.source_path, self.source_host,
-                      self.target_hosts, self.target_paths,
-                      self.original_size))
+        self.logger.info('About to transfer {} from {} to {}:{} ({} bytes)'
+                         .format(self.source_path, self.source_host,
+                                 self.target_hosts, self.target_paths,
+                                 self.original_size))
 
         transfer_sucessful = []
         # actual transfer process- this is done serially until we implement a
@@ -406,7 +412,7 @@ class Transferer(object):
             result = self.copy_to(target_host, target_path)
 
             if firewall_handler.close(self.source_host, self.options['port']) != 0:
-                print('WARNING: Firewall\'s temporary rule could not be deleted')
+                self.logger.warning('Firewall\'s temporary rule could not be deleted')
             del firewall_handler
 
             transfer_sucessful.append(self.after_transfer_checks(result,
@@ -416,7 +422,7 @@ class Transferer(object):
         if self.options.get('stop_slave', False):
             result = self.mariadb.start_replication(self.source_host, self.source_path)
             if result != 0:
-                print("ERROR: Start slave failed")
+                self.logger.error("Start slave failed")
                 return [-3]
 
         return transfer_sucessful
