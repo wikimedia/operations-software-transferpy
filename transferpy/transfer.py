@@ -119,14 +119,17 @@ def split_target(target):
     :return: if successful: target hostname, path
              else system exit
     """
-    if target.count(':') == 1:
-        host, path = target.split(':')
-        if host and path:
-            return host, path
-    logger = logging.getLogger('transferpy')
-    logger.error("Source/Destination must contain the fully qualified name of the host"
-                 " and absolute path separated by a colon")
-    sys.exit(2)
+    try:
+        host, path = [t.strip() for t in target.split(':')]
+        if not host or not path:
+            raise ValueError("Either host or path is empty")
+    except ValueError:
+        logger = logging.getLogger('transferpy')
+        logger.error("The host and path are not correctly "
+                     "separated by a colon at {}".format(target))
+        sys.exit(2)
+
+    return host, path
 
 
 def option_parse():

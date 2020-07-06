@@ -3,7 +3,7 @@ import sys
 import unittest
 from unittest.mock import patch, MagicMock
 
-from transferpy.transfer import option_parse
+from transferpy.transfer import option_parse, split_target
 from transferpy.Transferer import Transferer
 
 from transferpy.test.utils import hide_stderr
@@ -302,3 +302,35 @@ class TestArgumentParsing(unittest.TestCase):
             = self.option_parse(no_encrypt_test_args)
         self.assertTrue(other_options['compress'])
         self.assertFalse(other_options['encrypt'])
+
+    def test_split_target(self):
+        """Test split_target function"""
+        # Correct input with spaces
+        target = 'host : path '
+        host, path = split_target(target)
+        self.assertEqual(host, 'host')
+        self.assertEqual(path, 'path')
+
+        # Input with no path but a space
+        target = 'host: '
+        with self.assertRaises(SystemExit) as se:
+            split_target(target)
+        self.assertEqual(se.exception.code, 2)
+
+        # Input with no colon
+        target = 'host path'
+        with self.assertRaises(SystemExit) as se:
+            split_target(target)
+        self.assertEqual(se.exception.code, 2)
+
+        # Input with just colon
+        target = ':'
+        with self.assertRaises(SystemExit) as se:
+            split_target(target)
+        self.assertEqual(se.exception.code, 2)
+
+        # Input with more than one colon
+        target = 'host:path:'
+        with self.assertRaises(SystemExit) as se:
+            split_target(target)
+        self.assertEqual(se.exception.code, 2)
