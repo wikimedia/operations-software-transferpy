@@ -1,5 +1,6 @@
 """Tests for transfer.py class."""
 import sys
+import logging
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -386,3 +387,44 @@ class TestArgumentParsing(unittest.TestCase):
             = self.option_parse(no_parallel_checksum_test_args)
         self.assertFalse(other_options['checksum'])
         self.assertFalse(other_options['parallel_checksum'])
+
+    def test_verbose(self):
+        """Test verbose param."""
+        base_args = ['transfer', 'source:path', 'target:path']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(base_args)
+        self.assertFalse(other_options['verbose'])
+
+        verbose_test_args = base_args + ['--verbose']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(verbose_test_args)
+        self.assertTrue(other_options['verbose'])
+
+    def test_remote_execution_verbose(self):
+        """Test the effect of verbose option on RemoteExecution"""
+        base_args = ['transfer', 'source:path', 'target:path']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(base_args)
+        t = Transferer(source_host, source_path, target_hosts, target_paths, other_options)
+        self.assertEqual(t.remote_executor.options['verbose'], False)
+        # Now enable verbose and check the effect on RemoteExecution
+        verbose_test_args = base_args + ['--verbose']
+        (source_host, source_path, target_hosts, target_paths, other_options)\
+            = self.option_parse(verbose_test_args)
+        t = Transferer(source_host, source_path, target_hosts, target_paths, other_options)
+        self.assertEqual(t.remote_executor.options['verbose'], True)
+
+    def test_setup_logger(self):
+        """Test the logger's global availability and the impact
+        of the verbose option on the logger level."""
+        base_args = ['transfer', 'source:path', 'target:path']
+        self.option_parse(base_args)
+        # By default, verbose is false, so logging level
+        # should be INFO
+        logger = logging.getLogger('transferpy')
+        self.assertEqual(logger.level, logging.INFO)
+        # If verbose mentioned, level should be DEBUG
+        verbose_test_args = base_args + ['--verbose']
+        self.option_parse(verbose_test_args)
+        logger = logging.getLogger('transferpy')
+        self.assertEqual(logger.level, logging.DEBUG)
