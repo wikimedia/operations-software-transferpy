@@ -1,9 +1,13 @@
 #!/usr/bin/python3
 
 import argparse
+import configparser
 import sys
 import logging
 from transferpy.Transferer import Transferer
+
+
+CONFIG_FILE = '/etc/transferpy/transferpy.conf'
 
 
 class RawOption(argparse.HelpFormatter):
@@ -22,6 +26,28 @@ class RawOption(argparse.HelpFormatter):
         if text.startswith('raw|'):
             return text[4:].splitlines()
         return argparse.HelpFormatter._split_lines(self, text, width)
+
+
+def to_bool(value):
+    """
+    Convert the given string to boolean value.
+
+    :param value: value needs to be converted
+    :return: boolean value if given value is convertible
+    else ValueError
+    """
+    valid = {'true': True, 't': True, '1': True,
+             'false': False, 'f': False, '0': False,
+             }
+
+    if isinstance(value, bool):
+        return value
+
+    lower_value = value.lower()
+    if lower_value in valid:
+        return valid[lower_value]
+    else:
+        raise ValueError('invalid literal for boolean : "{}"'.format(value))
 
 
 def setup_logger(verbose):
@@ -62,12 +88,16 @@ def parse_arguments():
                                      epilog="Thank you! Full documentation at: "
                                             "https://wikitech.wikimedia.org/wiki/Transfer.py",
                                      formatter_class=RawOption)
-    parser.add_argument("--port", type=int, default=0,
+    parser.add_argument("--config", dest='config_file',
+                        help="Configuration file path. If found, it will set as the execution "
+                             "defaults unless overridden on the command line. Default: {}".
+                        format(CONFIG_FILE), default=CONFIG_FILE)
+    parser.add_argument("--port", type=int, default=None,
                         help="Port used for netcat listening on the receiver machine. "
                              " By default, transfer selects a free port available in the receiver"
                              " machine from the range 4400 to 4500")
     parser.add_argument("--type", choices=['file', 'xtrabackup', 'decompress'],
-                        dest='transfer_type', default='file',
+                        dest='transfer_type', default=None,
                         help="raw|file: regular file or directory recursive copy (Default)\n"
                              "xtrabackup: runs mariabackup on source\n"
                              "decompress: a tarball is transmitted as is and decompressed on target")
@@ -90,7 +120,7 @@ def parse_arguments():
                                      "(ignored on decompress mode) (Default)")
     compress_group.add_argument('--no-compress', action='store_false', dest='compress',
                                 help="Do not use compression on streaming")
-    parser.set_defaults(compress=True)
+    parser.set_defaults(compress=None)
 
     encrypt_group = parser.add_mutually_exclusive_group()
     encrypt_group.add_argument('--encrypt', action='store_true', dest='encrypt',
@@ -98,7 +128,7 @@ def parse_arguments():
                                     "algorithm chacha20 (Default)")
     encrypt_group.add_argument('--no-encrypt', action='store_false', dest='encrypt',
                                help="Disable compression - send data using an unencrypted stream")
-    parser.set_defaults(encrypt=True)
+    parser.set_defaults(encrypt=None)
 
     checksum_group = parser.add_mutually_exclusive_group()
     checksum_group.add_argument('--checksum', action='store_true', dest='checksum',
@@ -107,8 +137,7 @@ def parse_arguments():
                                      "(This only works for file transfers) (Default)")
     checksum_group.add_argument('--no-checksum', action='store_false', dest='checksum',
                                 help="Disable checksums")
-    parser.set_defaults(checksum=True)
-
+    parser.set_defaults(checksum=None)
     parallel_checksum_group = parser.add_mutually_exclusive_group()
     parallel_checksum_group.add_argument('--parallel-checksum', action='store_true', dest='parallel_checksum',
                                          help="Generate checksum parallel to the transmission for data "
@@ -116,15 +145,14 @@ def parse_arguments():
                                               "--parallel_checksum is faster than --checksum but less reliable")
     parallel_checksum_group.add_argument('--no-parallel-checksum', action='store_false', dest='parallel_checksum',
                                          help="Disable parallel checksum (Default)")
-    parser.set_defaults(parallel_checksum=False)
-
-    parser.add_argument('--stop-slave', action='store_true', dest='stop_slave',
+    parser.set_defaults(parallel_checksum=None)
+    parser.add_argument('--stop-slave', action='store_true', dest='stop_slave', default=None,
                         help="Only relevant if on xtrabackup mode: attempt to stop slave on the mysql instance "
                              "before running xtrabackup, and start slave after it completes to try to speed up "
                              "backup by preventing many changes queued on the xtrabackup_log. "
                              "By default, it doesn't try to stop replication.")
 
-    parser.add_argument('--verbose', action='store_true',
+    parser.add_argument('--verbose', action='store_true', default=None,
                         help="Outputs relevant information about transfer + information about Cuminexecution."
                              " By default, the output contains only relevant information about the transfer.")
     return parser
@@ -151,30 +179,78 @@ def split_target(target):
     return host, path
 
 
+def parse_configurations(config_file):
+    """
+    Parses the configuration file parameters.
+
+    :return: parser object
+    """
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    return config['DEFAULT']
+
+
+def assign_default_options(options):
+    """
+    Assign default values if the given options dictionary is missing
+    some required arguments.
+
+    :param options: given options
+    :return:
+    """
+    default_options = {'port': 0, 'transfer_type': 'file',
+                       'compress': True, 'encrypt': True, 'checksum': True,
+                       'parallel_checksum': False, 'stop_slave': False,
+                       'verbose': False}
+    for opt, defval in default_options.items():
+        if isinstance(defval, bool):
+            options[opt] = to_bool(options[opt]) if opt in options else defval
+        elif isinstance(defval, int):
+            options[opt] = int(options[opt]) if opt in options else defval
+        else:
+            options[opt] = options[opt] if opt in options else defval
+    return options
+
+
 def option_parse():
     """
     Parses the input parameters and returns them as a list.
 
     :return: sender host, sender path, receiver hosts, receiver paths, other options
     """
-    options = parse_arguments().parse_args()
-    setup_logger(options.verbose)
-    source_host, source_path = split_target(options.source)
+    # Take arguments from both command line and config file.
+    arguments = parse_arguments().parse_args()
+    cli_args = vars(arguments)
+    conf_args = dict(parse_configurations(arguments.config_file))
+    # Make checksum False if --parallel-checksum is given as command line
+    # argument and --no-checksum is not mentioned
+    if cli_args['parallel_checksum'] and cli_args['checksum'] is None:
+        conf_args['checksum'] = False
+    # Give first preference to command line arguments.
+    conf_args.update({k: v for k, v in cli_args.items() if v is not None})
+    # If both command line and config does not provide any preference
+    # assign program default values.
+    options = assign_default_options(conf_args)
+
+    setup_logger(options['verbose'])
+    # Take source argument from command line only
+    source_host, source_path = split_target(arguments.source)
     target_hosts = []
     target_paths = []
-    for target in options.target:
+    # Take target argument from command line only
+    for target in arguments.target:
         target_host, target_path = split_target(target)
         target_hosts.append(target_host)
         target_paths.append(target_path)
     other_options = {
-        'port': options.port,
-        'type': options.transfer_type,
-        'compress': True if options.transfer_type == 'decompress' else options.compress,
-        'encrypt': options.encrypt,
-        'checksum': False if not options.transfer_type == 'file' else options.checksum,
-        'parallel_checksum': False if options.checksum else options.parallel_checksum,
-        'stop_slave': False if not options.transfer_type == 'xtrabackup' else options.stop_slave,
-        'verbose': options.verbose
+        'port': options['port'],
+        'type': options['transfer_type'],
+        'compress': True if options['transfer_type'] == 'decompress' else options['compress'],
+        'encrypt': options['encrypt'],
+        'checksum': False if not options['transfer_type'] == 'file' else options['checksum'],
+        'parallel_checksum': False if options['checksum'] else options['parallel_checksum'],
+        'stop_slave': False if not options['transfer_type'] == 'xtrabackup' else options['stop_slave'],
+        'verbose': options['verbose']
     }
     return source_host, source_path, target_hosts, target_paths, other_options
 
