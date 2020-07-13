@@ -12,3 +12,4 @@ transferpy/doc/transferpy/
 debian/transferpy*
 debian/*debhelper*
 debian/files
+!debian/transferpy.dirs
