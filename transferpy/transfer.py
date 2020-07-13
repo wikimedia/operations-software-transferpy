@@ -25,6 +25,16 @@ class RawOption(argparse.HelpFormatter):
 
 
 def setup_logger(verbose):
+    """
+    Setup a logger named transferpy. The logger level
+    is set based on the verbose value. If verbose is true,
+    set the logger to DEBUG level, else INFO level.
+    This logger is globally available in the package and
+    can be accessed using logging.getLogger('transferpy').
+
+    :param verbose: verbose boolean variable
+    :return:
+    """
     logger = logging.getLogger('transferpy')
     handler = logging.StreamHandler(stream=sys.stdout)
     if verbose:
