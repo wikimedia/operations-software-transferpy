@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 
 from transferpy.transfer import option_parse, split_target
 from transferpy.Transferer import Transferer
+from transferpy.Firewall import Firewall
 
 from transferpy.test.utils import hide_stderr
 
@@ -219,6 +220,160 @@ class TestTransferer(unittest.TestCase):
             mocked_open_firewall.called_once()
             command = self.transferer.run()
             self.assertTrue(type(command) == list)
+
+    def test_close_gets_port_from_open(self):
+        """Test case for Firewall.close function, close gets the port number from open function"""
+        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
+                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall,\
+                patch.object(Transferer, 'copy_to') as mocked_copy_to,\
+                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall,\
+                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
+                patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
+            self.options['port'] = 0
+            self.options['checksum'] = False
+            mocked_sanity_check.return_value = 0
+            mocked_copy_to.return_value = 0
+            mocked_open_firewall.return_value = 4400
+            mocked_close_firewall.return_value = 0
+            mocked_after_transfer_checks.return_value = 0
+            mocked_start_replication.return_value = 0
+            command = self.transferer.run()
+            mocked_open_firewall.assert_called_once_with('source', 0)
+            mocked_close_firewall.assert_called_once_with('source', 4400)
+            self.assertTrue(type(command) == list)
+
+
+class TestFirewall(unittest.TestCase):
+    """Test cases for Firewall module"""
+    @patch('transferpy.Transferer.RemoteExecution')
+    def setUp(self, executor_mock):
+        self.executor = MagicMock()
+        executor_mock.return_value = self.executor
+
+        self.firewall_handler = Firewall('target', self.executor)
+
+    def test_reserve_port(self):
+        """Test for Firewall reserve_port function"""
+        target_port = 4444
+        command = ["/bin/mkdir {}".format(
+            self.firewall_handler.reserve_port_dir_name.format(target_port))]
+        self.firewall_handler.reserve_port(target_port)
+        self.executor.run.assert_called_with('target', command)
+
+    def test_unreserve_port(self):
+        """Test for Firewall unreserve_port function"""
+        target_port = 4444
+        command = ["/bin/rmdir {}".format(
+            self.firewall_handler.reserve_port_dir_name.format(target_port))]
+        self.firewall_handler.unreserve_port(target_port)
+        self.executor.run.assert_called_with('target', command)
+
+    def test_find_available_port(self):
+        """Test for find_available_port function"""
+        self.executor.run.return_value.returncode = 0
+        self.executor.run.return_value.stdout = "4400\n4401"
+        with patch('transferpy.Firewall.Firewall.reserve_port') as mocked_reserve_port:
+            mocked_reserve_port.return_value = 1
+            target_port = self.firewall_handler.find_available_port()
+            self.executor.run.assert_called_with('target', self.firewall_handler.find_used_ports_command)
+            self.assertEqual(target_port, 4402)
+
+    def test_no_available_port(self):
+        """Test for find_available_port function when no ports are available"""
+        self.executor.run.return_value.returncode = 0
+        with patch('transferpy.Firewall.Firewall.reserve_port') as mocked_reserve_port:
+            # reserve_port function failure lead to the idea of unavailability of the port
+            mocked_reserve_port.return_value = 0
+            with self.assertRaises(ValueError):
+                self.firewall_handler.find_available_port()
+            self.executor.run.assert_called_with('target', self.firewall_handler.find_used_ports_command)
+
+    def test_open_with_auto_port_finding(self):
+        """Test for open function with automatic port finding"""
+        source_host = 'src_host'
+        # When target_port is 0, Firewall automatically finds a free port
+        target_port = 0
+        expected_port = 4400
+        self.executor.run.return_value.returncode = 0
+        with patch('transferpy.Firewall.Firewall.find_available_port') as mocked_find_available_port:
+            mocked_find_available_port.return_value = expected_port
+            port = self.firewall_handler.open(source_host, target_port)
+            command = ['/sbin/iptables', '-A', 'INPUT', '-p', 'tcp', '-s',
+                       '{}'.format(source_host),
+                       '--dport', '{}'.format(expected_port),
+                       '-j', 'ACCEPT']
+            self.executor.run.assert_called_with('target', command)
+            self.assertEqual(port, expected_port)
+
+    def test_open_with_given_port(self):
+        """Test for open function with a given port"""
+        source_host = 'src_host'
+        target_port = 4400
+        expected_port = 4400
+        self.executor.run.return_value.returncode = 0
+        with patch('transferpy.Firewall.Firewall.reserve_port') as mocked_reserve_port:
+            mocked_reserve_port.return_value = 1
+            port = self.firewall_handler.open(source_host, target_port)
+            command = ['/sbin/iptables', '-A', 'INPUT', '-p', 'tcp', '-s',
+                       '{}'.format(source_host),
+                       '--dport', '{}'.format(expected_port),
+                       '-j', 'ACCEPT']
+            self.executor.run.assert_called_with('target', command)
+            self.assertEqual(port, expected_port)
+
+    def test_open_with_given_non_available_port(self):
+        """Test for open function with a given port which is
+        not available at the target host"""
+        source_host = 'src_host'
+        target_port = 4400
+        self.executor.run.return_value.returncode = 0
+        with patch('transferpy.Firewall.Firewall.reserve_port') as mocked_reserve_port:
+            mocked_reserve_port.return_value = 0
+            with self.assertRaises(ValueError):
+                self.firewall_handler.open(source_host, target_port)
+
+    def test_open_failure(self):
+        """Test for open function failure"""
+        source_host = 'src_host'
+        target_port = 4400
+        self.executor.run.return_value.returncode = 1
+        with patch('transferpy.Firewall.Firewall.reserve_port') as mocked_reserve_port:
+            mocked_reserve_port.return_value = 1
+            with self.assertRaises(Exception):
+                self.firewall_handler.open(source_host, target_port)
+
+    def test_close(self):
+        """Test for close function failure"""
+        source_host = 'src_host'
+        target_port = 4400
+        self.executor.run.return_value.returncode = 1
+        with patch('transferpy.Firewall.Firewall.unreserve_port') as mocked_unreserve_port:
+            command = ['/sbin/iptables', '-D', 'INPUT', '-p', 'tcp', '-s',
+                       '{}'.format(source_host),
+                       '--dport', '{}'.format(target_port),
+                       '-j', 'ACCEPT']
+            mocked_unreserve_port.return_value = 1
+            self.firewall_handler.close(source_host, target_port)
+            self.executor.run.assert_called_once_with('target', command)
+            mocked_unreserve_port.assert_called_once_with(target_port)
+
+    def test_find_pid(self):
+        """Test for find_pid"""
+        target_port = 4400
+        command = "/bin/fuser {}/tcp".format(target_port)
+        self.executor.run.return_value.returncode = 0
+        self.executor.run.return_value.stdout = 'port:123'
+        pid = self.firewall_handler.find_pid(target_port)
+        self.executor.run.assert_called_once_with('target', command)
+        self.assertEqual(pid, 123)
+
+    def test_kill_process(self):
+        """Test for kill_process"""
+        target_port = 4400
+        command = "/bin/fuser -k {}/tcp || echo 0".format(target_port)
+        self.executor.run.return_value.returncode = 0
+        self.firewall_handler.kill_process(target_port)
+        self.executor.run.assert_called_once_with('target', command)
 
 
 class TestArgumentParsing(unittest.TestCase):
