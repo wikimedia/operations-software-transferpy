@@ -16,14 +16,14 @@ class Firewall(object):
         self.search_end_port = 4500
 
     @property
-    def find_available_port_command(self):
+    def find_used_ports_command(self):
         """
-        Property: command to find to available port.
+        Property: command to find used ports.
 
-        :return: command to find available port
+        :return: command to find used ports
         """
         # TODO: Make this command in terms of search_start_port and search_end_port
-        command = ["netstat -altn | awk '{print $4}' | awk -F: '{print $NF}' | grep ^44[0-9][0-9]$ || echo 0"]
+        command = ["/bin/netstat -altn | awk '{print $4}' | awk -F: '{print $NF}' | grep ^44[0-9][0-9]$ || echo 0"]
         return command
 
     def find_pid(self, target_port):
@@ -32,7 +32,7 @@ class Firewall(object):
 
         :param target_port: the port using by process
         """
-        command = "fuser {}/tcp".format(target_port)
+        command = "/bin/fuser {}/tcp".format(target_port)
         result = self.run_command(command)
         if result.returncode != 0:
             raise Exception('failed to find PID based on the port {} on {}'
@@ -52,7 +52,7 @@ class Firewall(object):
         :param target_port: the port using by process
         :return: raises exception if not successful
         """
-        command = "fuser -k {}/tcp || echo 0".format(target_port)
+        command = "/bin/fuser -k {}/tcp || echo 0".format(target_port)
         result = self.run_command(command)
         if result.returncode != 0:
             raise Exception('failed to kill process based on the port {} on {}'
@@ -110,7 +110,7 @@ class Firewall(object):
 
         :return: available port if successful, else raises ValueError
         """
-        result = self.run_command(self.find_available_port_command)
+        result = self.run_command(self.find_used_ports_command)
         num_of_searches = self.search_end_port - self.search_start_port
         if result.returncode != 0 or len(result.stdout.split('\n')) == num_of_searches:
             raise ValueError('failed to find an available port on {}'.format(self.target_host))
