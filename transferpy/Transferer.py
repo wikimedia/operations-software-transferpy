@@ -33,6 +33,7 @@ class Transferer(object):
         self.source_is_socket = False
         self.original_size = 0
         self.checksum = None
+        self.source_checksum_path = None
 
         self._password = None
         self.cipher = 'chacha20'
@@ -81,22 +82,45 @@ class Transferer(object):
         result = self.run_command(host, command)
         return not result.returncode
 
-    def calculate_checksum(self, host, path):
-        self.logger.info('Started checksum calculation for {}:{}'.format(host, path))
+    def calculate_checksum_command(self, host, path):
         hash_executable = '/usr/bin/md5sum'
         parent_dir = os.path.normpath(os.path.join(path, '..'))
         basename = os.path.basename(os.path.normpath(path))
+        if host == self.source_host and path == self.source_path:
+            command = '/bin/mktemp'
+            result = self.run_command(host, command)
+            if result.returncode != 0:
+                raise Exception('source checksum temporary file creation'
+                                ' failed for {}'.format(host))
+            self.source_checksum_path = result.stdout
+            checksum_write_command = ' > {}'.format(self.source_checksum_path)
+        else:
+            checksum_write_command = ''
         if self.source_is_dir:
             command = ['/bin/bash', '-c',
-                       '"cd {} && /usr/bin/find {} -type f -exec {} {}"'
-                       .format(parent_dir, basename, hash_executable, r'\{\} \;')]
+                       r'"cd {} && /usr/bin/find {} -type f -exec {} {} {}"'
+                       .format(parent_dir, basename, hash_executable, r'\{\} \;',
+                               checksum_write_command)]
         else:
-            command = ['/bin/bash', '-c', r'"cd {} && {} {}"'
-                       .format(parent_dir, hash_executable, basename)]
+            command = ['/bin/bash', '-c', r'"cd {} && {} {} {}"'
+                       .format(parent_dir, hash_executable, basename,
+                               checksum_write_command)]
+        return command
+
+    def calculate_checksum(self, host, path):
+        self.logger.info('Started checksum calculation for {}:{}'.format(host, path))
+        command = self.calculate_checksum_command(host, path)
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise Exception('md5sum execution failed')
         self.logger.info('Finished checksum calculation for {}:{}'.format(host, path))
+        return result.stdout
+
+    def read_checksum(self, host, path):
+        command = ['/bin/bash', '-c', '/bin/cat < {} && /bin/rm {}'.format(path, path)]
+        result = self.run_command(host, command)
+        if result.returncode != 0:
+            raise Exception('reading checksum failed for {}:{}'.format(host, path))
         return result.stdout
 
     def has_available_disk_space(self, host, path, size):
@@ -346,10 +370,6 @@ class Transferer(object):
             # If not xtrabackup, is the source a directory or a file?
             self.source_is_dir = self.is_dir(self.source_host, self.source_path)
 
-        # Calculate the checksum
-        if self.options['checksum']:
-            self.checksum = self.calculate_checksum(self.source_host, self.source_path)
-
     def after_transfer_checks(self, result, target_host, target_path):
         """
         Post-transfer checks: Was the transfer really successful. Yes- return 0; No-
@@ -413,6 +433,11 @@ class Transferer(object):
             self.logger.error("{}".format(str(e)))
             return [-1]
 
+        # Calculate the checksum in another process
+        if self.options['checksum']:
+            command = self.calculate_checksum_command(self.source_host, self.source_path)
+            job = self.remote_executor.start_job(self.source_host, command)
+
         # stop slave if requested
         if self.options.get('stop_slave', False):
             result = self.mariadb.stop_replication(self.source_host, self.source_path)
@@ -426,6 +451,7 @@ class Transferer(object):
                                  self.original_size))
 
         transfer_sucessful = []
+        wait_for_source_checksum = True
         # actual transfer process- this is done serially until we implement a
         # multicast-like process
         for target_host, target_path in zip(self.target_hosts, self.target_paths):
@@ -436,7 +462,10 @@ class Transferer(object):
             if firewall_handler.close(self.source_host, self.options['port']) != 0:
                 self.logger.warning('Firewall\'s temporary rule could not be deleted')
             del firewall_handler
-
+            if self.options['checksum'] and wait_for_source_checksum:
+                self.remote_executor.wait_job(self.source_host, job)
+                self.checksum = self.read_checksum(self.source_host, self.source_checksum_path)
+                wait_for_source_checksum = False
             transfer_sucessful.append(self.after_transfer_checks(result,
                                                                  target_host,
                                                                  target_path))

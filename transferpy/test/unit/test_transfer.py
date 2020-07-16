@@ -149,6 +149,7 @@ class TestTransferer(unittest.TestCase):
         with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
                 patch('transferpy.Transferer.MariaDB.stop_replication') as mocked_stop_replication:
             self.options['stop_slave'] = True
+            self.options['checksum'] = False
             #  Return value should be anything other than 0 for the if block to execute
             mocked_stop_replication.return_value = 1
             mocked_sanity_check.called_once()
@@ -164,6 +165,7 @@ class TestTransferer(unittest.TestCase):
                 patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
                 patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
             self.options['port'] = 4444
+            self.options['checksum'] = False
             mocked_copy_to.return_value = 0
             mocked_close_firewall.return_value = 0
             mocked_after_transfer_checks.return_value = 0
@@ -185,6 +187,7 @@ class TestTransferer(unittest.TestCase):
                 patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
                 patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
             self.options['port'] = 4444
+            self.options['checksum'] = False
             self.options['stop_slave'] = True
             # We need to skip the first if statement
             # which checks the stop slave option
