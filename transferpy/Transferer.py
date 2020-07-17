@@ -23,6 +23,10 @@ class Transferer(object):
             self.options['type'] = 'file'
         if 'verbose' not in self.options:  # default to non-verbose output
             self.options['verbose'] = False
+        if 'checksum' not in self.options:  # default to checksum
+            self.options['checksum'] = True
+        if 'parallel_checksum' not in self.options:  # default to non-parallel-checksum
+            self.options['parallel_checksum'] = False
 
         self.logger = logging.getLogger(__name__)
         remote_execution_options = {'verbose': self.options['verbose']}
@@ -32,12 +36,14 @@ class Transferer(object):
         self.source_is_dir = False
         self.source_is_socket = False
         self.original_size = 0
+        self.source_tmp_dir = None
+        self.target_tmp_dir = None
         self.checksum = None
-        self.source_checksum_path = None
         self.parallel_checksum = None
-        # TODO: Fix concurrency issue with these file names.
-        self.parallel_checksum_source_path = '/tmp/transferrer_source.md5sum'
-        self.parallel_checksum_target_path = '/tmp/transferrer_target.md5sum'
+
+        self.parent_tmp_dir = '/tmp'
+        self.parallel_checksum_source_path = None
+        self.parallel_checksum_target_path = None
 
         self._password = None
         self.cipher = 'chacha20'
@@ -91,13 +97,7 @@ class Transferer(object):
         parent_dir = os.path.normpath(os.path.join(path, '..'))
         basename = os.path.basename(os.path.normpath(path))
         if host == self.source_host and path == self.source_path:
-            command = '/bin/mktemp'
-            result = self.run_command(host, command)
-            if result.returncode != 0:
-                raise Exception('source checksum temporary file creation'
-                                ' failed for {}'.format(host))
-            self.source_checksum_path = result.stdout
-            checksum_write_command = ' > {}'.format(self.source_checksum_path)
+            checksum_write_command = ' > {}'.format(self.parallel_checksum_source_path)
         else:
             checksum_write_command = ''
         if self.source_is_dir:
@@ -467,11 +467,45 @@ class Transferer(object):
             else:
                 self.logger.info(('Parallel checksum of source on {} and the transmitted ones'
                                   ' on {} match.').format(self.source_host, target_host))
+            self.remove_temp_paths()
 
         # All checks seem right, return success
         self.logger.info('{} bytes correctly transferred from {} to {}'
                          .format(final_size, self.source_host, target_host))
         return 0
+
+    def create_temp_paths(self, tmp_dir):
+        """
+        Update checksum file paths, and create a temporary
+        directory at the source machine.
+
+        :param tmp_dir: temporary directory path at the target host
+        :return: None if successful, else Exception
+        """
+        # Lets delete the lock suffix since the dir is not actually meant
+        # for locking (It also resolves the problem of trying to make
+        # the same dir twice in case of same source and target host).
+        source_tmp_dir = tmp_dir.rsplit('.', 1)[0]
+        command = ["/bin/mkdir {}".format(source_tmp_dir)]
+        result = self.run_command(self.source_host, command)
+        self.parallel_checksum_source_path = '{}/transferrer_source.md5sum'.format(source_tmp_dir)
+        self.parallel_checksum_target_path = '{}/transferrer_target.md5sum'.format(tmp_dir)
+        if result.returncode != 0:
+            raise Exception('Creation of temporary directory failed at source {}:{}'.
+                            format(self.source_host, source_tmp_dir))
+
+    def remove_temp_paths(self):
+        """
+        Remove temporary directories.
+
+        :return: None
+        """
+        tmp_dir = self.parallel_checksum_source_path.rsplit('/', 1)[0]
+        command = ["/bin/rmdir {}".format(tmp_dir)]
+        result = self.run_command(self.source_host, command)
+        if result.returncode != 0:
+            self.logger.warning('Deletion of temporary directory {}:{} failed'.format(
+                self.source_host, tmp_dir))
 
     def run(self):
         """
@@ -486,11 +520,6 @@ class Transferer(object):
         except ValueError as e:
             self.logger.error("{}".format(str(e)))
             return [-1]
-
-        # Calculate the checksum in another process
-        if self.options['checksum']:
-            command = self.calculate_checksum_command(self.source_host, self.source_path)
-            job = self.remote_executor.start_job(self.source_host, command)
 
         # stop slave if requested
         if self.options.get('stop_slave', False):
@@ -509,25 +538,32 @@ class Transferer(object):
         # actual transfer process- this is done serially until we implement a
         # multicast-like process
         for target_host, target_path in zip(self.target_hosts, self.target_paths):
-            firewall_handler = Firewall(target_host, self.remote_executor)
+            firewall_handler = Firewall(target_host, self.remote_executor, self.parent_tmp_dir)
             try:
                 self.options['port'] = firewall_handler.open(self.source_host, self.options['port'])
+                if self.options['parallel_checksum'] or (self.options['checksum'] and wait_for_source_checksum):
+                    self.create_temp_paths(firewall_handler.reserve_port_dir_name)
             except (ValueError, Exception) as e:
                 self.logger.error("{}".format(str(e)))
                 return [-1]
+            if self.options['checksum'] and wait_for_source_checksum:
+                # Calculate the checksum in another process
+                command = self.calculate_checksum_command(self.source_host, self.source_path)
+                job = self.remote_executor.start_job(self.source_host, command)
 
             result = self.copy_to(target_host, target_path)
 
-            if firewall_handler.close(self.source_host, self.options['port']) != 0:
-                self.logger.warning('Firewall\'s temporary rule could not be deleted')
-            del firewall_handler
             if self.options['checksum'] and wait_for_source_checksum:
                 self.remote_executor.wait_job(self.source_host, job)
-                self.checksum = self.read_checksum(self.source_host, self.source_checksum_path)
+                self.checksum = self.read_checksum(self.source_host, self.parallel_checksum_source_path)
+                self.remove_temp_paths()
                 wait_for_source_checksum = False
             transfer_sucessful.append(self.after_transfer_checks(result,
                                                                  target_host,
                                                                  target_path))
+            if firewall_handler.close(self.source_host, self.options['port']) != 0:
+                self.logger.warning('Firewall\'s temporary rule could not be deleted')
+            del firewall_handler
 
         if self.options.get('stop_slave', False):
             result = self.mariadb.start_replication(self.source_host, self.source_path)

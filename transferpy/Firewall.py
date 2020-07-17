@@ -1,9 +1,10 @@
 #!/usr/bin/python3
+import os
 
 
 class Firewall(object):
     """Class for Transferer firewall related command execution"""
-    def __init__(self, target_host, remote_execution):
+    def __init__(self, target_host, remote_execution, parent_tmp_dir='/tmp'):
         """
         Initialize the instance variables.
 
@@ -14,7 +15,9 @@ class Firewall(object):
         self.remote_executor = remote_execution
         self.search_start_port = 4400
         self.search_end_port = 4500
-        self.reserve_port_dir_name = '/tmp/transferpy_{}.lock'
+        # The trnsfr_target_port will always be unique at an instance of time
+        self.reserve_port_dir_name = \
+            os.path.normpath(os.path.join(parent_tmp_dir, 'trnsfr_{}_{}.lock'))
 
     @property
     def find_used_ports_command(self):
@@ -108,7 +111,7 @@ class Firewall(object):
         result = self.run_command(command)
         if not self.unreserve_port(target_port):
             print('WARNING: {} temporary directory could not be deleted'
-                  .format(self.reserve_port_dir_name.format(target_port)))
+                  .format(self.reserve_port_dir_name))
         return result.returncode
 
     def reserve_port(self, target_port):
@@ -118,8 +121,12 @@ class Firewall(object):
         :param target_port: port to be reserved
         :return: True if reservation is successful
         """
-        command = ["/bin/mkdir {}".format(self.reserve_port_dir_name.format(target_port))]
+        command = ["/bin/mkdir {}".format(self.reserve_port_dir_name.format(
+            self.target_host, target_port))]
         result = self.run_command(command)
+        if result.returncode == 0:
+            self.reserve_port_dir_name = self.reserve_port_dir_name.format(
+                self.target_host, target_port)
         return result.returncode == 0
 
     def unreserve_port(self, target_port):
@@ -129,7 +136,7 @@ class Firewall(object):
         :param target_port: port to be unreserved
         :return: True if port successfully unreserved
         """
-        command = ["/bin/rmdir {}".format(self.reserve_port_dir_name.format(target_port))]
+        command = ["/bin/rmdir {}".format(self.reserve_port_dir_name)]
         result = self.run_command(command)
         return result.returncode == 0
 

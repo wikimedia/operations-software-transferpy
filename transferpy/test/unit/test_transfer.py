@@ -255,16 +255,20 @@ class TestFirewall(unittest.TestCase):
     def test_reserve_port(self):
         """Test for Firewall reserve_port function"""
         target_port = 4444
+        target_host = 'target'
         command = ["/bin/mkdir {}".format(
-            self.firewall_handler.reserve_port_dir_name.format(target_port))]
+            self.firewall_handler.reserve_port_dir_name.format(target_host, target_port))]
         self.firewall_handler.reserve_port(target_port)
         self.executor.run.assert_called_with('target', command)
 
     def test_unreserve_port(self):
         """Test for Firewall unreserve_port function"""
         target_port = 4444
-        command = ["/bin/rmdir {}".format(
-            self.firewall_handler.reserve_port_dir_name.format(target_port))]
+        target_host = 'target'
+        # This assigning happens at Firewall.reserve_port function
+        self.firewall_handler.reserve_port_dir_name = self.\
+            firewall_handler.reserve_port_dir_name.format(target_host, target_port)
+        command = ["/bin/rmdir {}".format(self.firewall_handler.reserve_port_dir_name)]
         self.firewall_handler.unreserve_port(target_port)
         self.executor.run.assert_called_with('target', command)
 
