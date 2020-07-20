@@ -1,5 +1,6 @@
 """Tests for transfer.py class."""
 import sys
+from os import path
 import logging
 import unittest
 from unittest.mock import patch, MagicMock
@@ -481,8 +482,10 @@ class TestFirewall(unittest.TestCase):
         """Test for Firewall reserve_port function"""
         target_port = 4444
         target_host = 'target'
-        command = ["/bin/mkdir {}".format(
-            self.firewall_handler.reserve_port_dir_name.format(target_host, target_port))]
+        reserve_port_dir_name = path.normpath(
+            path.join(self.firewall_handler.parent_tmp_dir, 'trnsfr_{}_{}.lock'.
+                      format(target_host, target_port)))
+        command = ["/bin/mkdir {}".format(reserve_port_dir_name)]
         self.firewall_handler.reserve_port(target_port)
         self.executor.run.assert_called_with('target', command)
 
@@ -491,8 +494,10 @@ class TestFirewall(unittest.TestCase):
         target_port = 4444
         target_host = 'target'
         # This assigning happens at Firewall.reserve_port function
-        self.firewall_handler.reserve_port_dir_name = self.\
-            firewall_handler.reserve_port_dir_name.format(target_host, target_port)
+        reserve_port_dir_name = path.normpath(
+            path.join(self.firewall_handler.parent_tmp_dir, 'trnsfr_{}_{}.lock'.
+                      format(target_host, target_port)))
+        self.firewall_handler.reserve_port_dir_name = reserve_port_dir_name
         command = ["/bin/rmdir {}".format(self.firewall_handler.reserve_port_dir_name)]
         self.firewall_handler.unreserve_port(target_port)
         self.executor.run.assert_called_with('target', command)
