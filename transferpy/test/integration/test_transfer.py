@@ -36,8 +36,8 @@ class TestTransferer(unittest.TestCase):
         """
         jobs = []
         for port in ports:
-            self.options['port'] = port
-            listen_command = ['/bin/bash', '-c', r'"{}"'.format(self.transferer.netcat_listen_command)]
+            listen_command = ['/bin/bash', '-c', r'"{}"'.format(
+                self.transferer.netcat_listen_command(port))]
             jobs.append(self.transferer.remote_executor.start_job(host, listen_command))
         time.sleep(3)
         return jobs

@@ -247,12 +247,12 @@ class TestTransferer(unittest.TestCase):
         self.options['compress'] = False
         self.options['parallel_checksum'] = False
         self.options['encrypt'] = False
-        self.options['port'] = 4400
+        port = 4400
         with patch('transferpy.Transferer.time'):
             target_host = 'target'
             target_path = 'target_path'
             self.executor.run.return_value.returncode = 0
-            returncode = self.transferer.copy_to(target_host, target_path)
+            returncode = self.transferer.copy_to(target_host, target_path, port)
             self.executor.start_job.assert_called_once()
             # Successful run should call the wait_job function
             self.executor.wait_job.assert_called_once()
@@ -264,12 +264,12 @@ class TestTransferer(unittest.TestCase):
         self.options['compress'] = False
         self.options['parallel_checksum'] = False
         self.options['encrypt'] = False
-        self.options['port'] = 4400
+        port = 4400
         with patch('transferpy.Transferer.time'):
             target_host = 'target'
             target_path = 'target_path'
             self.executor.run.return_value.returncode = 1
-            returncode = self.transferer.copy_to(target_host, target_path)
+            returncode = self.transferer.copy_to(target_host, target_path, port)
             self.executor.start_job.assert_called_once()
             # Failure should call the kill_job function
             self.executor.kill_job.assert_called_once()
@@ -327,16 +327,16 @@ class TestTransferer(unittest.TestCase):
     def test_netcat_send_command(self):
         """Test netcat_send_command"""
         target_host = 'source'
-        self.options['port'] = 4400
-        expect_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, self.options['port'])
-        actual_command = self.transferer.netcat_send_command(target_host)
+        port = 4400
+        expect_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, port)
+        actual_command = self.transferer.netcat_send_command(target_host, port)
         self.assertEqual(expect_command, actual_command)
 
     def test_netcat_listen_command(self):
         """Test netcat_listen_command"""
-        self.options['port'] = 4400
-        expect_command = '/bin/nc -l -w 300 -p {}'.format(self.options['port'])
-        actual_command = self.transferer.netcat_listen_command
+        port = 4400
+        expect_command = '/bin/nc -l -w 300 -p {}'.format(port)
+        actual_command = self.transferer.netcat_listen_command(port)
         self.assertEqual(expect_command, actual_command)
 
     def test_tar_command(self):

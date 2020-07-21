@@ -215,14 +215,13 @@ class Transferer(object):
 
         return checksum_command
 
-    def netcat_send_command(self, target_host):
-        netcat_send_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, self.options['port'])
+    def netcat_send_command(self, target_host, port):
+        netcat_send_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, port)
 
         return netcat_send_command
 
-    @property
-    def netcat_listen_command(self):
-        netcat_listen_command = '/bin/nc -l -w 300 -p {}'.format(self.options['port'])
+    def netcat_listen_command(self, port):
+        netcat_listen_command = '/bin/nc -l -w 300 -p {}'.format(port)
 
         return netcat_listen_command
 
@@ -293,7 +292,7 @@ class Transferer(object):
 
         return decrypt_command
 
-    def copy_to(self, target_host, target_path):
+    def copy_to(self, target_host, target_path, port):
         """
         Copies the source file or dir on the source host to 'target_host'.
         'target_path' is assumed to be a *directory* and the source file or
@@ -304,9 +303,9 @@ class Transferer(object):
                            .format(self.xtrabackup_command, self.compress_command,
                                    self.parallel_checksum_source_command,
                                    self.encrypt_command,
-                                   self.netcat_send_command(target_host))]
+                                   self.netcat_send_command(target_host, port))]
             dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
-                           .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                           .format(target_path, self.netcat_listen_command(port), self.decrypt_command,
                                    self.parallel_checksum_target_command,
                                    self.decompress_command, self.mbstream_command)]
         elif self.is_decompress:
@@ -314,9 +313,9 @@ class Transferer(object):
                            .format(self.compress_command, self.source_path,
                                    self.parallel_checksum_source_command,
                                    self.encrypt_command,
-                                   self.netcat_send_command(target_host))]
+                                   self.netcat_send_command(target_host, port))]
             dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
-                           .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                           .format(target_path, self.netcat_listen_command(port), self.decrypt_command,
                                    self.parallel_checksum_target_command,
                                    self.decompress_command, self.untar_command)]
         elif self.source_is_dir:
@@ -327,22 +326,22 @@ class Transferer(object):
                                    source_basename, self.compress_command,
                                    self.parallel_checksum_source_command,
                                    self.encrypt_command,
-                                   self.netcat_send_command(target_host))]
+                                   self.netcat_send_command(target_host, port))]
 
             dst_command = ['/bin/bash', '-c', r'"cd {} && {} {} {} {} {}"'
-                           .format(target_path, self.netcat_listen_command, self.decrypt_command,
+                           .format(target_path, self.netcat_listen_command(port), self.decrypt_command,
                                    self.parallel_checksum_target_command,
                                    self.decompress_command, self.untar_command)]
         else:
             src_command = ['/bin/bash', '-c', r'"{} < {} {} {} {}"'
                            .format(self.compress_command, self.source_path,
                                    self.parallel_checksum_source_command,
-                                   self.encrypt_command, self.netcat_send_command(target_host))]
+                                   self.encrypt_command, self.netcat_send_command(target_host, port))]
 
             final_file = os.path.join(os.path.normpath(target_path),
                                       os.path.basename(self.source_path))
             dst_command = ['/bin/bash', '-c', r'"{} {} {} {} > {}"'
-                           .format(self.netcat_listen_command, self.decrypt_command,
+                           .format(self.netcat_listen_command(port), self.decrypt_command,
                                    self.parallel_checksum_target_command,
                                    self.decompress_command, final_file)]
 
@@ -540,7 +539,7 @@ class Transferer(object):
         for target_host, target_path in zip(self.target_hosts, self.target_paths):
             firewall_handler = Firewall(target_host, self.remote_executor, self.parent_tmp_dir)
             try:
-                self.options['port'] = firewall_handler.open(self.source_host, self.options['port'])
+                port = firewall_handler.open(self.source_host, self.options['port'])
                 if self.options['parallel_checksum'] or (self.options['checksum'] and wait_for_source_checksum):
                     self.create_temp_paths(firewall_handler.reserve_port_dir_name)
             except (ValueError, Exception) as e:
@@ -551,7 +550,7 @@ class Transferer(object):
                 command = self.calculate_checksum_command(self.source_host, self.source_path)
                 job = self.remote_executor.start_job(self.source_host, command)
 
-            result = self.copy_to(target_host, target_path)
+            result = self.copy_to(target_host, target_path, port)
 
             if self.options['checksum'] and wait_for_source_checksum:
                 self.remote_executor.wait_job(self.source_host, job)
@@ -561,7 +560,7 @@ class Transferer(object):
             transfer_sucessful.append(self.after_transfer_checks(result,
                                                                  target_host,
                                                                  target_path))
-            if firewall_handler.close(self.source_host, self.options['port']) != 0:
+            if firewall_handler.close(self.source_host, port) != 0:
                 self.logger.warning('Firewall\'s temporary rule could not be deleted')
             del firewall_handler
 
