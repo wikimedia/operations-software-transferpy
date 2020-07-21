@@ -117,7 +117,7 @@ class TestTransferer(unittest.TestCase):
 
         # Close ports
         self._kill_use_ports(self.dst_host, jobs, use_ports)
-        if self.transferer.firewall_handler.close(self.dst_host, self.options['port']) != 0:
+        if self.transferer.firewall_handler.close(self.dst_host) != 0:
             print('WARNING: Firewall\'s temporary rule could not be deleted')
 
         # In the test running machine expect no other

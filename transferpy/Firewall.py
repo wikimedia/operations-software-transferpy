@@ -14,6 +14,7 @@ class Firewall(object):
         :param remote_execution: remote execution helper
         """
         self.target_host = target_host
+        self.target_port = 0
         self.remote_executor = remote_execution
         self.search_start_port = 4400
         self.search_end_port = 4500
@@ -87,6 +88,7 @@ class Firewall(object):
         elif not self.reserve_port(target_port):
             raise ValueError("ERROR: The given port {} is not available on {}"
                              .format(target_port, self.target_host))
+        self.target_port = target_port
 
         command = ['/sbin/iptables', '-A', 'INPUT', '-p', 'tcp', '-s',
                    '{}'.format(source_host),
@@ -101,7 +103,7 @@ class Firewall(object):
             raise FirewallError('iptables execution failed')
         return target_port
 
-    def close(self, source_host, target_port):
+    def close(self, source_host):
         """
         Closes target port on iptables of target host.
 
@@ -111,10 +113,10 @@ class Firewall(object):
         """
         command = ['/sbin/iptables', '-D', 'INPUT', '-p', 'tcp', '-s',
                    '{}'.format(source_host),
-                   '--dport', '{}'.format(target_port),
+                   '--dport', '{}'.format(self.target_port),
                    '-j', 'ACCEPT']
         result = self.run_command(command)
-        if not self.unreserve_port(target_port):
+        if not self.unreserve_port(self.target_port):
             print('WARNING: {} temporary directory could not be deleted'
                   .format(self.reserve_port_dir_name))
         return result.returncode

@@ -606,7 +606,7 @@ class Transferer(object):
                 transfer_sucessful.append(self.after_transfer_checks(result,
                                                                      target_host,
                                                                      target_path))
-                if firewall_handler.close(self.source_host, port) != 0:
+                if firewall_handler.close(self.source_host) != 0:
                     self.logger.warning('Firewall\'s temporary rule could not be deleted')
                 del firewall_handler
         finally:

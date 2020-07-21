@@ -224,27 +224,6 @@ class TestTransferer(unittest.TestCase):
             command = self.transferer.run()
             self.assertTrue(type(command) == list)
 
-    def test_close_gets_port_from_open(self):
-        """Test case for Firewall.close function, close gets the port number from open function"""
-        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
-                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall,\
-                patch.object(Transferer, 'copy_to') as mocked_copy_to,\
-                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall,\
-                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
-                patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
-            self.options['port'] = 0
-            self.options['checksum'] = False
-            mocked_sanity_check.return_value = 0
-            mocked_copy_to.return_value = 0
-            mocked_open_firewall.return_value = 4400
-            mocked_close_firewall.return_value = 0
-            mocked_after_transfer_checks.return_value = 0
-            mocked_start_replication.return_value = 0
-            command = self.transferer.run()
-            mocked_open_firewall.assert_called_once_with('source', 0)
-            mocked_close_firewall.assert_called_once_with('source', 4400)
-            self.assertTrue(type(command) == list)
-
     def test_copy_to_success(self):
         """Test case for the successful run of Transferer.copy_to function"""
         self.options['compress'] = False
@@ -589,9 +568,24 @@ class TestFirewall(unittest.TestCase):
                        '--dport', '{}'.format(target_port),
                        '-j', 'ACCEPT']
             mocked_unreserve_port.return_value = 1
-            self.firewall_handler.close(source_host, target_port)
+            self.firewall_handler.target_port = 4400
+            self.firewall_handler.close(source_host)
             self.executor.run.assert_called_once_with('target', command)
             mocked_unreserve_port.assert_called_once_with(target_port)
+
+    def test_close_gets_port_from_open(self):
+        """Test case for Firewall.close function, close takes port number
+        from Firewall.target_port which is set by Firewall.open"""
+        source_host = 'src_host'
+        # When target_port is 0, Firewall automatically finds a free port
+        target_port = 0
+        expected_port = 4400
+        self.executor.run.return_value.returncode = 0
+        with patch('transferpy.Firewall.Firewall.find_available_port') as mocked_find_available_port:
+            mocked_find_available_port.return_value = expected_port
+            port = self.firewall_handler.open(source_host, target_port)
+            self.assertEqual(port, expected_port)
+            self.assertEqual(self.firewall_handler.target_port, expected_port)
 
     def test_find_pid(self):
         """Test for find_pid"""
