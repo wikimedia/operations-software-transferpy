@@ -9,6 +9,8 @@ tox --no-test
 tox -e venv -- <some command>
 ```
 
+* Please note that Transferpy development requires Python 3.7 or later.
+
 ## Run tests
 
 Tests are located under *transferpy/test*. They are split between unit and integration tests. To run unit tests:

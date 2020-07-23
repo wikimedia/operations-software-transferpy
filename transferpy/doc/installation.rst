@@ -5,9 +5,11 @@ Dependencies
 ^^^^^^^^^^^^^^
 transfer.py requires the following technologies
 
-- Python 3, preferable 3.5 or later
+- Python 3, preferable 3.7 or later
 
   + cumin python class if chosen as the transfer system
+
+- Transferpy development requires Python 3.7 or later.
 
 - A remote execution system (ssh, paramiko, salt, etc.).
   If none are available, there is a LocalExecution class, but it will only allow to run commands locally (local transfers)
