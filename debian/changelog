@@ -1,3 +1,15 @@
+transferpy (1.0) wikimedia; urgency=medium
+
+  * Add automatic port detection.
+  * Add fast parallel-checksum option for network related integrity checks.
+  * Make source checksum parallel to data transfer.
+  * Resolve all the concurrency issues.
+  * Add more tests and documentation.
+  * Enable configuration file for user arguments.
+
+ -- Ajumal P A <ajupazhamayil@gmail.com>  Fri, 31 Jul 2020 17:10:12 +0530
+
+
 transferpy (0.1) wikimedia; urgency=medium
 
   * Initial packaging.
