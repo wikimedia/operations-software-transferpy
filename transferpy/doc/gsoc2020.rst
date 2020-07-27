@@ -3,7 +3,7 @@ GSoC 2020
 
 Student: `Ajumal P A`_
 
-- Move the transfer framework to its module named transferpy.
+- Separate WMFMariadbpy and transferpy to its own repositories.
 - Modularize transferpy into three modules and a RemoteExecution:
 
     * The :any:`Transferer <transferpy.Transferer>` class is responsible for the act on the user arguments and make
@@ -18,13 +18,28 @@ Student: `Ajumal P A`_
 
 - Give proper comments to newly created modules.
 - Make `--help` option useful to the user.
-- Make documentation using Sphinx (This).
+- Make documentation_ using Sphinx (This).
 - Remove unimportant output of Cumin from the console
   :any:`CuminExecution.run <transferpy.RemoteExecution.CuminExecution.CuminExecution.run>`
-- Detect a free port automatically on the target machine for the Netcat to listen
+- Improve the transferpy logs using the python logging module and also by adding more error messages.
+- Use a new parameter verbose in order to understand the user logging level need.
+- Detect a free port automatically on the target machine using `netstat` for the `netcat` to listen
   :any:`Firewall.find_available_port <transferpy.Firewall.Firewall.find_available_port>`.
-- Seperate WMFMariadbpy and transferpy to its own repositories.
+- Resolve concurrency issues related to the port finding using a lock based approach.
+- Make checksum parallel to the actual transfer if the user enables newly added parallel-checksum option.
+  (This checksum only detects network integrity issues)
+- Make the normal checksum parallel to actual transfer at source machine using multiprocessing.
+  (This checksum detects both network and disk related integrity issues)
+- Resolve concurrency issue of checksum related temporary file names.
+- Benchmark and prove the efficiency of checksum options.
+- Enable configuration file option for user arguments.
+- Since temporary files are being created by transferpy for locking and checksumming,
+  implemented a way to clean them properly at the end of execution even if any
+  errors/exception happened in the middle of transfer.
 - Make Debian transferpy package.
+- Add proper tests and documentation for the new features.
+- Release transferpy-1.0 deb package with all the above features.
 
 
 .. _`Ajumal P A`: https://phabricator.wikimedia.org/p/Privacybatm
+.. _documentation: http://doc.wikimedia.org/transferpy

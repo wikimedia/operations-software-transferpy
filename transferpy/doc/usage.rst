@@ -1,7 +1,7 @@
 Usage
 ======
 
-transfer.py is installed (via Puppet_) on PATH on WMF production infrastrcture on cumin1001 and cumin1002,
+transfer.py is installed (via Puppet_) on PATH on WMF production infrastructure on cumin1001 and cumin1002,
 and has to run as root (like cumin).
 
 transfer.py --help

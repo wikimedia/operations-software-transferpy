@@ -3,8 +3,9 @@ Introduction
 
 transfer.py
 ^^^^^^^^^^^^^^
-**transfer.py** is a Python 3 script intended to move large files or directory trees between WMF production
-hosts in an efficient way, initially thought for database maintenance, but which can be used to move arbitrary files.
+**transferpy** is a Python 3 framework and command-line utility intended to efficiently
+move large files or directory trees between WMF production hosts, as well as to provide a low-level
+tool to backup and recover MySQL/MariaDB servers.
 
 Context
 ^^^^^^^^
@@ -36,7 +37,7 @@ For MySQL, two modes (in addition to the default "``file``") were added:
 - ``xtrabackup``: where the source of the backup is not obtained from the filesystem, but from a mariabackup run with
   streaming (xbstream) from a running MariaDB server. In this mode, the mysql server socket is used as the origin path.
   It can optionally stop replication in cases where that may speed up the copy/preparation process. It only transfer
-  the files, it does not prepare or touch in any way the generated files (that is considered out of scope of this script,
+  the files, it does not prepare or touch in any way the generated files (that is considered out of scope of this framework,
   as one may want to wait to do that for incremental backups or other reasons).
 
 - ``decompress``: where the source is a precompressed tar.gz file containing a single directory,

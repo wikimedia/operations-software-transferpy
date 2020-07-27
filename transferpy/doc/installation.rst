@@ -26,5 +26,17 @@ transfer.py requires the following technologies
 - xtrabackup (mariabackup) installed locally on the mariadb hosts for --type=xtrabackup
 - mysql client if replication wants to be stopped
 - iptables to manage the firewall hole during transfer
+- netstat to find the used ports.
+- tee to help parallel checksum
+- mkdir, rmdir and rm to create and remove temporary files (eg: create lock directory).
+- fuser to find the pid related to a port (Currently not using this feature)
+
+
+Debian package
+^^^^^^^^^^^^^^
+- Add wikimedia-repo_ to your repo list and do `apt install transferpy` **OR**
+- Refer :doc:`Download and Install deb package <download>` deb package.
 
 *Note*: transfer.py expect the user to have root privileges without the sudo prefix.
+
+.. _wikimedia-repo: https://apt.wikimedia.org/wikimedia/
