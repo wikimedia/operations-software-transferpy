@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import os
 
+from transferpy.Exceptions import TempDeletionError, FirewallError
+
 
 class Firewall(object):
     """Class for Transferer firewall related command execution"""
@@ -15,9 +17,8 @@ class Firewall(object):
         self.remote_executor = remote_execution
         self.search_start_port = 4400
         self.search_end_port = 4500
-        # The trnsfr_target_port will always be unique at an instance of time
-        self.reserve_port_dir_name = \
-            os.path.normpath(os.path.join(parent_tmp_dir, 'trnsfr_{}_{}.lock'))
+        self.parent_tmp_dir = parent_tmp_dir
+        self.reserve_port_dir_name = None
 
     @property
     def find_used_ports_command(self):
@@ -93,7 +94,11 @@ class Firewall(object):
                    '-j', 'ACCEPT']
         result = self.run_command(command)
         if result.returncode != 0:
-            raise Exception('iptables execution failed')
+            if not self.unreserve_port(target_port):
+                raise TempDeletionError(
+                    'iptables execution and temporary lock dir {} deletion failed'.format(
+                        self.reserve_port_dir_name))
+            raise FirewallError('iptables execution failed')
         return target_port
 
     def close(self, source_host, target_port):
@@ -121,12 +126,13 @@ class Firewall(object):
         :param target_port: port to be reserved
         :return: True if reservation is successful
         """
-        command = ["/bin/mkdir {}".format(self.reserve_port_dir_name.format(
-            self.target_host, target_port))]
+        reserve_port_dir_name = os.path.normpath(
+                os.path.join(self.parent_tmp_dir, 'trnsfr_{}_{}.lock'.format(self.target_host, target_port)))
+        command = ["/bin/mkdir {}".format(reserve_port_dir_name)]
         result = self.run_command(command)
         if result.returncode == 0:
-            self.reserve_port_dir_name = self.reserve_port_dir_name.format(
-                self.target_host, target_port)
+            # The trnsfr_target_host_target_port will always be unique at an instance of time
+            self.reserve_port_dir_name = reserve_port_dir_name
         return result.returncode == 0
 
     def unreserve_port(self, target_port):
