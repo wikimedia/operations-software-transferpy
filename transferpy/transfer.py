@@ -33,8 +33,7 @@ def to_bool(value):
     Convert the given string to boolean value.
 
     :param value: value needs to be converted
-    :return: boolean value if given value is convertible
-    else ValueError
+    :return: boolean value if given value is convertible else ValueError
     """
     valid = {'true': True, 't': True, '1': True,
              'false': False, 'f': False, '0': False,
