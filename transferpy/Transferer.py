@@ -7,7 +7,7 @@ import re
 import time
 import logging
 
-from transferpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
+from wmfmariadbpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
 from transferpy.Firewall import Firewall
 from transferpy.MariaDB import MariaDB
 from transferpy.Exceptions import TempDeletionError, FirewallError
