@@ -5,7 +5,6 @@
 .coverage
 venv
 .idea/
-transferpy/doc/transferpy/
 *.build*
 .pybuild*
 *.eggs*
