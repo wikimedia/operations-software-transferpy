@@ -11,7 +11,7 @@ Student: `Ajumal P A`_
     * The :any:`Firewall <transferpy.Firewall>` class is for open/close the ports in the iptables
       to receive the data by the receiver machines.
     * :any:`MariaDB <transferpy.MariaDB>`
-    * The :any:`RemoteExecution <transferpy.RemoteExecution.CuminExecution>` is the module responsible for the
+    * The RemoteExecution (now moved to the wmfmariadbpy repo) is the module responsible for the
       execution of command on the remote machines.
 
        + transfer framework mainly uses the Cumin execution.
@@ -20,7 +20,6 @@ Student: `Ajumal P A`_
 - Make `--help` option useful to the user.
 - Make documentation_ using Sphinx (This).
 - Remove unimportant output of Cumin from the console
-  :any:`CuminExecution.run <transferpy.RemoteExecution.CuminExecution.CuminExecution.run>`
 - Improve the transferpy logs using the python logging module and also by adding more error messages.
 - Use a new parameter verbose in order to understand the user logging level need.
 - Detect a free port automatically on the target machine using `netstat` for the `netcat` to listen
