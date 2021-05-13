@@ -1,8 +1,8 @@
 Usage
 ======
 
-transfer.py is installed (via Puppet_) on PATH on WMF production infrastructure on cumin1001 and cumin1002,
-and has to run as root (like cumin).
+transfer.py is installed (via Puppet_) on PATH on WMF production infrastructure on the
+`Cumin hosts`_, and has to run as root (like cumin).
 
 transfer.py --help
 ^^^^^^^^^^^^^^^^^^^
@@ -15,3 +15,4 @@ transfer.py --help
 
 
 .. _Puppet: https://phabricator.wikimedia.org/source/operations-puppet/browse/production/modules/profile/manifests/mariadb/backup/transfer.pp
+.. _`Cumin hosts`: https://wikitech.wikimedia.org/wiki/Cumin#Production_infrastructure
