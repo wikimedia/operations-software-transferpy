@@ -49,6 +49,7 @@ class Transferer(object):
         self._password = None
         self.cipher = 'chacha20'
         self.buffer_size = 8
+        self.iterations = 310000
 
         self.logger.debug('Finished Transferer initialization')
 
@@ -272,10 +273,10 @@ class Transferer(object):
     @property
     def encrypt_command(self):
         if self.options['encrypt']:
-            encrypt_command = ('| /usr/bin/openssl enc -{}'
-                               ' -pass pass:{} -bufsize {}').format(self.cipher,
-                                                                    self.password,
-                                                                    self.buffer_size)
+            encrypt_command = (f'| /usr/bin/openssl enc -{self.cipher}'
+                               f' -pass pass:{self.password}'
+                               f' -bufsize {self.buffer_size}'
+                               f' -iter {self.iterations}')
         else:
             encrypt_command = ''
 
@@ -284,10 +285,10 @@ class Transferer(object):
     @property
     def decrypt_command(self):
         if self.options['encrypt']:
-            decrypt_command = ('| /usr/bin/openssl enc -d -{}'
-                               ' -pass pass:{} -bufsize {}').format(self.cipher,
-                                                                    self.password,
-                                                                    self.buffer_size)
+            decrypt_command = (f'| /usr/bin/openssl enc -d -{self.cipher}'
+                               f' -pass pass:{self.password}'
+                               f' -bufsize {self.buffer_size}'
+                               f' -iter {self.iterations}')
         else:
             decrypt_command = ''
 
