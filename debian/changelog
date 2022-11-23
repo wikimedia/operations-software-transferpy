@@ -2,8 +2,10 @@ transferpy (1.1+deb11u1) bullseye; urgency=medium
 
   * Fixed security issue where arbitrary execution
     could be sent on host or paths
+  * Updated encryption- maintain chacha20 cipher but
+    enable PBKDF2 usage with 310000 iterations
 
- -- jynus <jcrespo@wikimedia.org>  Sat, 12 Mar 2022 12:44:42 +0100
+ -- jynus <jcrespo@wikimedia.org>  Tue, 22 Nov 2022 11:00:00 +0100
 
 transferpy (1.0+deb11u1) bullseye; urgency=medium
 
