@@ -4,6 +4,7 @@ transferpy (1.1+deb11u1) bullseye; urgency=medium
     could be sent on host or paths
   * Updated encryption- maintain chacha20 cipher but
     enable PBKDF2 usage with 310000 iterations
+  * Add transfer.py man page
 
  -- jynus <jcrespo@wikimedia.org>  Tue, 22 Nov 2022 11:00:00 +0100
 
