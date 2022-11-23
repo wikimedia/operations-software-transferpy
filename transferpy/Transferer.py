@@ -4,6 +4,7 @@ import base64
 import os
 import os.path
 import re
+import shlex
 import time
 import logging
 
@@ -15,10 +16,10 @@ from transferpy.Exceptions import TempDeletionError, FirewallError
 
 class Transferer(object):
     def __init__(self, source_host, source_path, target_hosts, target_paths, options={}):
-        self.source_host = source_host
-        self.source_path = source_path
-        self.target_hosts = target_hosts
-        self.target_paths = target_paths
+        self.source_host = shlex.quote(source_host)
+        self.source_path = shlex.quote(source_path)
+        self.target_hosts = [shlex.quote(h) for h in target_hosts]
+        self.target_paths = [shlex.quote(p) for p in target_paths]
         self.options = options
         if 'type' not in self.options:  # default transfer type is file/directory transfer
             self.options['type'] = 'file'

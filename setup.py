@@ -4,7 +4,7 @@ from setuptools import setup
 setup(
     name='transferpy',
     description='Fast tool for transferring files',
-    version='1.0',
+    version='1.1',
     url='',
     packages=(
         'transferpy',

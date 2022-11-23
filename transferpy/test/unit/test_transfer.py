@@ -32,6 +32,13 @@ class TestTransferer(unittest.TestCase):
 
         self.executor.run.assert_called_with('host', 'command')
 
+    def test_remote_execution_injection(self):
+        bad_transferer = Transferer('$PS1', '$(ls /)',  ['target `ls`'], ['~/path'], {})
+        self.assertEqual(bad_transferer.source_host, "'$PS1'")
+        self.assertEqual(bad_transferer.source_path, "'$(ls /)'")
+        self.assertEqual(bad_transferer.target_hosts, ["'target `ls`'"])
+        self.assertEqual(bad_transferer.target_paths, ["'~/path'"])
+
     def test_is_dir(self):
         path = 'path'
         self.transferer.is_dir('host', path)
