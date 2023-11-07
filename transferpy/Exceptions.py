@@ -3,25 +3,41 @@ class Error(Exception):
     pass
 
 
+class TempCreationError(Error):
+    """Exception raised for errors in temp path creation."""
+    pass
+
+
 class TempDeletionError(Error):
     """Exception raised for errors in temp path deletion."""
-
-    def __init__(self, message):
-        """
-        init function.
-
-        :param message: message need to be displayed
-        """
-        self.message = message
+    pass
 
 
 class FirewallError(Error):
     """Exception raised for errors related to Firewall."""
+    pass
 
-    def __init__(self, message):
-        """
-        init function.
 
-        :param message: message need to be displayed
-        """
-        self.message = message
+class ChecksumError(Error):
+    """Exception raised for errors related to Checksums."""
+    pass
+
+
+class FreeDiskSpaceError(Error):
+    """Exception raised for errors related to (not having enough) free disk space."""
+    pass
+
+
+class MySQLError(Error):
+    """Exception raised for errors related to MySQL/MariaDB."""
+    pass
+
+
+class NotFoundError(Error):
+    """Exception raised for errors related to missing expected files or resources, such as a host."""
+    pass
+
+
+class OverwriteError(Error):
+    """Exception raised for errors related to missing expected files or resources, such as a host."""
+    pass
