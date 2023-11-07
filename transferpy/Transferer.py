@@ -18,7 +18,7 @@ import shlex
 import time
 import logging
 
-from wmfmariadbpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
+from transferpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
 from transferpy.Firewall import Firewall
 from transferpy.MariaDB import MariaDB
 from transferpy.Exceptions import (TempDeletionError, TempCreationError, FirewallError, ChecksumError,

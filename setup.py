@@ -11,7 +11,6 @@ setup(
     ),
     install_requires=[
         'cumin',
-        'wmfmariadbpy @ git+https://gerrit.wikimedia.org/r/operations/software/wmfmariadbpy@v0.4',
     ],
     tests_require=[
         'flake8',
