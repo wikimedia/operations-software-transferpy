@@ -241,10 +241,12 @@ class Transferer(object):
     def get_datadir_from_socket(self, socket):
         if socket.endswith('mysqld.sock'):
             datadir = '/srv/sqldata'
-        elif re.match(r'.*mysqld\.[smx]\d\.sock', socket):
-            datadir = '/srv/sqldata.' + socket[-7:-5]
         else:
-            raise Exception('the given socket does not have a known format')
+            result = re.match(r'.*mysqld\.(.+)\.sock', socket)
+            if result:
+                datadir = '/srv/sqldata.' + result.group(1)
+            else:
+                raise Exception('the given socket does not have a known format')
         return datadir
 
     @property

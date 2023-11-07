@@ -351,12 +351,17 @@ class TestTransferer(unittest.TestCase):
         datadir = '/srv/sqldata'
         actual_dir = self.transferer.get_datadir_from_socket(socket)
         self.assertEqual(datadir, actual_dir)
-        socket = 'test.mysqld.s1.sock'
+        socket = '/var/run/mysqld/test.mysqld.s1.sock'
         datadir = '/srv/sqldata.s1'
         actual_dir = self.transferer.get_datadir_from_socket(socket)
         self.assertEqual(datadir, actual_dir)
+        # Test analytics use case
+        socket = '/run/mysqld/mysqld.analytics_meta.sock'
+        datadir = '/srv/sqldata.analytics_meta'
+        actual_dir = self.transferer.get_datadir_from_socket(socket)
+        self.assertEqual(datadir, actual_dir)
         # Give wrong socket input
-        socket = 'test.mysqld.smx1.sock'
+        socket = 'test.mysqld.skt'
         with self.assertRaises(Exception):
             self.transferer.get_datadir_from_socket(socket)
 
