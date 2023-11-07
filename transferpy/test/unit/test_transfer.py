@@ -170,11 +170,11 @@ class TestTransferer(unittest.TestCase):
         with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check:
             mocked_sanity_check.side_effect = ValueError('Test sanity_checks')
             command = self.transferer.run()
-            self.assertTrue(type(command) == list)
+            self.assertTrue(isinstance(command, list))
 
     def test_run_stoping_slave(self):
         """Test case for Transferer.run function which provides stop_slave option"""
-        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
+        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check, \
                 patch('transferpy.Transferer.MariaDB.stop_replication') as mocked_stop_replication:
             self.options['stop_slave'] = True
             self.options['checksum'] = False
@@ -182,15 +182,15 @@ class TestTransferer(unittest.TestCase):
             mocked_stop_replication.return_value = 1
             mocked_sanity_check.called_once()
             command = self.transferer.run()
-            self.assertTrue(type(command) == list)
+            self.assertTrue(isinstance(command, list))
 
     def test_run_successfully(self):
         """Test case for Transferer.run function starting transfer successfully"""
-        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
-                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall,\
-                patch.object(Transferer, 'copy_to') as mocked_copy_to,\
-                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall,\
-                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
+        with patch.object(Transferer, 'sanity_checks') as mocked_sanity_check, \
+                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall, \
+                patch.object(Transferer, 'copy_to') as mocked_copy_to, \
+                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall, \
+                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks, \
                 patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
             self.options['port'] = 4444
             self.options['checksum'] = False
@@ -201,18 +201,18 @@ class TestTransferer(unittest.TestCase):
             mocked_sanity_check.called_once()
             mocked_open_firewall.called_once()
             command = self.transferer.run()
-            self.assertTrue(type(command) == list)
+            self.assertTrue(isinstance(command, list))
 
     def test_run_start_slave(self):
         """Test case for Transferer.run function for when it runs the
            start_slave function with the stop_slave option
         """
-        with patch('transferpy.Transferer.MariaDB.stop_replication') as mocked_stop_replication,\
-                patch.object(Transferer, 'sanity_checks') as mocked_sanity_check,\
-                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall,\
-                patch.object(Transferer, 'copy_to') as mocked_copy_to,\
-                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall,\
-                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks,\
+        with patch('transferpy.Transferer.MariaDB.stop_replication') as mocked_stop_replication, \
+                patch.object(Transferer, 'sanity_checks') as mocked_sanity_check, \
+                patch('transferpy.Transferer.Firewall.open') as mocked_open_firewall, \
+                patch.object(Transferer, 'copy_to') as mocked_copy_to, \
+                patch('transferpy.Transferer.Firewall.close') as mocked_close_firewall, \
+                patch.object(Transferer, 'after_transfer_checks') as mocked_after_transfer_checks, \
                 patch('transferpy.Transferer.MariaDB.start_replication') as mocked_start_replication:
             self.options['port'] = 4444
             self.options['checksum'] = False
@@ -229,7 +229,7 @@ class TestTransferer(unittest.TestCase):
             mocked_sanity_check.called_once()
             mocked_open_firewall.called_once()
             command = self.transferer.run()
-            self.assertTrue(type(command) == list)
+            self.assertTrue(isinstance(command, list))
 
     def test_copy_to_success(self):
         """Test case for the successful run of Transferer.copy_to function"""
