@@ -105,7 +105,7 @@ class Transferer:
         Returns true if the given path is a directory and exists on the given host, otherwise
         returns false.
         """
-        command = ['/bin/bash', '-c', f'"[ -d "{path}" ]"']
+        command = ['/bin/bash', '-c', f'"[ -d \"{path}\" ]"']
         result = self.run_command(host, command)
         return not result.returncode
 
@@ -114,7 +114,7 @@ class Transferer:
         Returns true if the given path is a socket and exists on the given host, otherwise
         returns false.
         """
-        command = ['/bin/bash', '-c', f'"[ -S "{path}" ]"']
+        command = ['/bin/bash', '-c', f'"[ -S \"{path}\" ]"']
         result = self.run_command(host, command)
         return not result.returncode
 
@@ -136,7 +136,7 @@ class Transferer:
         Returns true if there is a file or a directory with such path on the remote
         host given.
         """
-        command = ['/bin/bash', '-c', f'"[ -a "{path}" ]"']
+        command = ['/bin/bash', '-c', f'"[ -a \"{path}\" ]"']
         result = self.run_command(host, command)
         return not result.returncode
 
