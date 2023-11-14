@@ -4,11 +4,11 @@ interface- a generic but simple abstraction of a straightforward api to execute 
 commands on hosts, but hiding the complexity of the Cumin configuration details.
 """
 
-import os
 from multiprocessing import Pipe, Process
 
 import cumin  # type: ignore
 from cumin import query, transport, transports  # type: ignore
+from cumin.transports.clustershell import NullReporter
 
 from transferpy.RemoteExecution.RemoteExecution import CommandReturn, RemoteExecution
 
@@ -65,21 +65,12 @@ class CuminExecution(RemoteExecution):
         worker.commands = [self.format_command(command)]
         worker.handler = "sync"
 
+        worker.progress_bars = False
         # If verbose is false, suppress stdout and stderr of Cumin.
-        if self.options.get("verbose", False):
-            return_code = worker.execute()
-        else:
-            # Temporary workaround until Cumin has full support to suppress output (T212783).
-            stdout = transports.clustershell.sys.stdout
-            stderr = transports.clustershell.sys.stderr
-            try:
-                with open(os.devnull, "w") as discard_output:
-                    transports.clustershell.sys.stdout = discard_output
-                    transports.clustershell.sys.stderr = discard_output
-                    return_code = worker.execute()
-            finally:
-                transports.clustershell.sys.stdout = stdout
-                transports.clustershell.sys.stderr = stderr
+        if not self.options.get("verbose", False):
+            worker.reporter = NullReporter
+
+        return_code = worker.execute()
 
         for nodes, output in worker.get_results():
             if host in nodes:
