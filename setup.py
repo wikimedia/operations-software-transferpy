@@ -8,6 +8,7 @@ setup(
     url='',
     packages=(
         'transferpy',
+        'transferpy.RemoteExecution'
     ),
     install_requires=[
         'cumin',

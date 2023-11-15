@@ -12,8 +12,9 @@ X-Python3-Version: >= 3.2
 
 Package: transferpy
 Architecture: any
-Depends: ${python3:Depends}, ${misc:Depends}
-Recommends: mariadb-backup | wmf-mariadb104
+Depends: ${python3:Depends}, ${misc:Depends}, net-tools, netcat-traditional | netcat-openbsd,
+ iptables
+Recommends: mariadb-backup | wmf-mariadb106
 Description: Tool that can move large files over the network and backup mariadb servers
  transferpy is a Python 3 framework and command-line utility 
  intended to efficiently move large files or directory trees 
