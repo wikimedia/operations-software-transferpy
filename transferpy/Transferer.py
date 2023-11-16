@@ -105,7 +105,7 @@ class Transferer:
         Returns true if the given path is a directory and exists on the given host, otherwise
         returns false.
         """
-        command = ['/bin/bash', '-c', f'"[ -d \"{path}\" ]"']
+        command = self.run_with_bash(f'[ -d \"{path}\" ]')
         result = self.run_command(host, command)
         return not result.returncode
 
@@ -114,7 +114,7 @@ class Transferer:
         Returns true if the given path is a socket and exists on the given host, otherwise
         returns false.
         """
-        command = ['/bin/bash', '-c', f'"[ -S \"{path}\" ]"']
+        command = self.run_with_bash(f'[ -S \"{path}\" ]')
         result = self.run_command(host, command)
         return not result.returncode
 
@@ -136,7 +136,7 @@ class Transferer:
         Returns true if there is a file or a directory with such path on the remote
         host given.
         """
-        command = ['/bin/bash', '-c', f'"[ -a \"{path}\" ]"']
+        command = self.run_with_bash(f'[ -a \"{path}\" ]')
         result = self.run_command(host, command)
         return not result.returncode
 
@@ -153,22 +153,16 @@ class Transferer:
         else:
             checksum_write_command = ''
         if self.source_is_dir:
-            command = [
-                '/bin/bash',
-                '-c',
-                (
-                    f'"cd {parent_dir} && '
-                    f'/usr/bin/find {basename} -type f -exec {hash_executable} '
-                    r'\{\} \; '
-                    f'{checksum_write_command}"'
-                )
-            ]
+            command = self.run_with_bash(
+                f'cd {parent_dir} && '
+                f'/usr/bin/find {basename} -type f -exec {hash_executable} '
+                r'\{\} \; '
+                f'{checksum_write_command}'
+            )
         else:
-            command = [
-                '/bin/bash',
-                '-c',
-                f'"cd {parent_dir} && {hash_executable} {basename} {checksum_write_command}"'
-            ]
+            command = self.run_with_bash(
+                f'cd {parent_dir} && {hash_executable} {basename} {checksum_write_command}'
+            )
         return command
 
     def calculate_checksum(self, host, path):
@@ -191,7 +185,7 @@ class Transferer:
         and then deletes the checksum file. It rises an exception if reading or deleting the file
         errors out.
         """
-        command = ['/bin/bash', '-c', f'/bin/cat < {path} && /bin/rm {path}']
+        command = self.run_with_bash(f'/bin/cat < {path} && /bin/rm {path}')
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise ChecksumError(f'reading checksum failed for {host}:{path}')
@@ -202,8 +196,7 @@ class Transferer:
         Returns true if the disk space available at host on the given path location is larger
         than the provided size, otherwise returns false.
         """
-        command = ['/bin/bash', '-c',
-                   f'"df --block-size=1 --output=avail \"{path}\" | /usr/bin/tail -n 1"']
+        command = self.run_with_bash(f'df --block-size=1 --output=avail \"{path}\" | /usr/bin/tail -n 1')
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise FreeDiskSpaceError('df execution failed')
@@ -227,11 +220,10 @@ class Transferer:
 
     def dir_is_empty(self, directory, host):
         """
-        Returns true the given directory path is empty, false if it contains something
-        (a file, a dir).
-        If it is not a directory or does not exist, the result is undefined.
+        Returns True if the given directory path is really a directory that
+        exists, listing access is available and it is empty.
         """
-        command = ['/bin/bash', '-c', f'"[ -z \\"$(/bin/ls -A {directory})\\" ]"']
+        command = self.run_with_bash(f'[ -d {directory} -a -z \\"$(/bin/ls -A {directory})\\" ]')
         result = self.run_command(host, command)
         return result.returncode == 0
 

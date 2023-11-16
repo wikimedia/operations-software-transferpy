@@ -281,7 +281,7 @@ class TestTransferer(unittest.TestCase):
     def test_dir_is_empty(self):
         """Test dir_is_empty"""
         directory = 'dir'
-        command = ['/bin/bash', '-c', r'"[ -z \"$(/bin/ls -A {})\" ]"'.format(directory)]
+        command = ['/bin/bash', '-c', f'"[ -d {directory} -a -z \\"$(/bin/ls -A {directory})\\" ]"']
         self.transferer.dir_is_empty(directory, 'source')
         self.executor.run.assert_called_once_with('source', command)
 
@@ -306,7 +306,7 @@ class TestTransferer(unittest.TestCase):
     def test_read_checksum(self):
         """Test read_checksum"""
         path = 'path'
-        command = ['/bin/bash', '-c', '/bin/cat < {} && /bin/rm {}'.format(path, path)]
+        command = ['/bin/bash', '-c', f'"/bin/cat < {path} && /bin/rm {path}"']
         self.executor.run.return_value.returncode = 0
         self.executor.run.return_value.stdout = "checksum - path"
         checksum = self.transferer.read_checksum('source', path)
