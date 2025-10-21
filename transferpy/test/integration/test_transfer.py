@@ -13,15 +13,15 @@ import time
 import os
 
 from transferpy.Transferer import Transferer
-from transferpy.Firewall import Firewall
+from transferpy.Firewall import get_firewall
 
 
 class TestTransferer(unittest.TestCase):
     """Test cases for Transferer."""
-    SRC_HOST = "source-host"
-    DST_HOST = "target-host"
-    SRC_PATH = "source-path"
-    DEST_PATH = "target-path"
+    SRC_HOST = "localhost"
+    DST_HOST = "localhost"
+    SRC_PATH = "/tmp/test"
+    DEST_PATH = "/tmp/test2"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -53,7 +53,8 @@ class TestTransferer(unittest.TestCase):
         for job in jobs:
             self.transferer.remote_executor.kill_job(host, job)
         for p in ports:
-            self.transferer.firewall_handler.kill_process(p)
+            f = get_firewall(host, self.transferer.remote_executor)
+            f.kill_process(p)
 
     def _corrupt_data(self, transfer_type):
         if transfer_type == 'file' or transfer_type == 'decompress':
@@ -112,12 +113,12 @@ class TestTransferer(unittest.TestCase):
 
         jobs = self._use_ports(self.dst_host, use_ports)
         self.options['port'] = 0
-        self.transferer.firewall_handler = Firewall(self.src_host, self.transferer.remote_executor)
-        self.options['port'] = self.transferer.firewall_handler.open(self.dst_host, self.options['port'])
+        f = get_firewall(self.src_host, self.transferer.remote_executor)
+        self.options['port'] = f.open(self.dst_host, self.options['port'])
 
         # Close ports
         self._kill_use_ports(self.dst_host, jobs, use_ports)
-        if self.transferer.firewall_handler.close(self.dst_host) != 0:
+        if f.close(self.dst_host) != 0:
             print('WARNING: Firewall\'s temporary rule could not be deleted')
 
         # In the test running machine expect no other

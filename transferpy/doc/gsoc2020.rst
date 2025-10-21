@@ -8,7 +8,7 @@ Student: `Ajumal P A`_
 
     * The :any:`Transferer <transferpy.Transferer>` class is responsible for the act on the user arguments and make
       the send/receive possible.
-    * The :any:`Firewall <transferpy.Firewall>` class is for open/close the ports in the iptables
+    * The :any:`Firewall <transferpy.Firewall.IptablesFirewall>` class is for open/close the ports in the iptables
       to receive the data by the receiver machines.
     * :any:`MariaDB <transferpy.MariaDB>`
     * The RemoteExecution (now moved to the wmfmariadbpy repo) is the module responsible for the
@@ -23,7 +23,7 @@ Student: `Ajumal P A`_
 - Improve the transferpy logs using the python logging module and also by adding more error messages.
 - Use a new parameter verbose in order to understand the user logging level need.
 - Detect a free port automatically on the target machine using `netstat` for the `netcat` to listen
-  :any:`Firewall.find_available_port <transferpy.Firewall.Firewall.find_available_port>`.
+  :any:`find_available_port <transferpy.Firewall.BaseFirewall>`.
 - Resolve concurrency issues related to the port finding using a lock based approach.
 - Make checksum parallel to the actual transfer if the user enables newly added parallel-checksum option.
   (This checksum only detects network integrity issues)

@@ -19,7 +19,7 @@ import time
 import logging
 
 from transferpy.RemoteExecution.CuminExecution import CuminExecution as RemoteExecution
-from transferpy.Firewall import Firewall
+from transferpy.Firewall import get_firewall
 from transferpy.MariaDB import MariaDB
 from transferpy.Exceptions import (TempDeletionError, TempCreationError, FirewallError, ChecksumError,
                                    FreeDiskSpaceError, MySQLError, NotFoundError, OverwriteError)
@@ -58,6 +58,7 @@ class Transferer:
         remote_execution_options = {'verbose': self.options['verbose']}
         self.remote_executor = RemoteExecution(remote_execution_options)
         self.mariadb = MariaDB(self.remote_executor)
+        self.firewall = None
 
         self.source_is_dir = False
         self.source_is_socket = False
@@ -105,18 +106,18 @@ class Transferer:
         Returns true if the given path is a directory and exists on the given host, otherwise
         returns false.
         """
-        command = self.run_with_bash(f'[ -d \"{path}\" ]')
+        command = ['test', '-d', path]
         result = self.run_command(host, command)
-        return not result.returncode
+        return result.returncode == 0
 
     def is_socket(self, host, path):
         """
         Returns true if the given path is a socket and exists on the given host, otherwise
         returns false.
         """
-        command = self.run_with_bash(f'[ -S \"{path}\" ]')
+        command = ['test', '-S', path]
         result = self.run_command(host, command)
-        return not result.returncode
+        return result.returncode == 0
 
     def host_exists(self, host):
         """
@@ -136,9 +137,9 @@ class Transferer:
         Returns true if there is a file or a directory with such path on the remote
         host given.
         """
-        command = self.run_with_bash(f'[ -a \"{path}\" ]')
+        command = ['test', '-e', path]
         result = self.run_command(host, command)
-        return not result.returncode
+        return result.returncode == 0
 
     def calculate_checksum_command(self, host, path):
         """
@@ -221,9 +222,9 @@ class Transferer:
     def dir_is_empty(self, directory, host):
         """
         Returns True if the given directory path is really a directory that
-        exists, listing access is available and it is empty.
+        exists, TODO: listing access is available and it is empty.
         """
-        command = self.run_with_bash(f'[ -d {directory} -a -z \\"$(/bin/ls -A {directory})\\" ]')
+        command = ['test', '-d', directory]
         result = self.run_command(host, command)
         return result.returncode == 0
 
@@ -649,7 +650,7 @@ class Transferer:
 
     def attempt_temp_deletion(self, host, path, file_type):
         """
-        Delete directory/file if it exist.
+        Delete directory/file if it exists.
 
         :param host: host in which path need to be deleted
         :param path: path need to be deleted
@@ -721,10 +722,10 @@ class Transferer:
         try:
             for target_host, target_path in zip(self.target_hosts, self.target_paths):
                 current_target_host = target_host
-                firewall_handler = Firewall(target_host, self.remote_executor, self.parent_tmp_dir)
                 try:
-                    port = firewall_handler.open(self.source_host, self.options['port'])
-                    current_target_tmp_dir = firewall_handler.reserve_port_dir_name
+                    self.firewall = get_firewall(target_host, self.remote_executor)
+                    port = self.firewall.open(self.source_host, self.options['port'])
+                    current_target_tmp_dir = self.firewall.reserve_port_dir_name
                     # Lets delete the lock suffix since the dir is not actually meant
                     # for locking (It also resolves the problem of trying to make
                     # the same dir twice in case of same source and target host).
@@ -750,9 +751,9 @@ class Transferer:
                 transfer_sucessful.append(self.after_transfer_checks(result,
                                                                      target_host,
                                                                      target_path))
-                if firewall_handler.close(self.source_host) != 0:
+                if self.firewall.close(self.source_host) != 0:
                     self.logger.warning('Firewall\'s temporary rule could not be deleted')
-                del firewall_handler
+                del self.firewall
         finally:
             self.clean_all_temps(current_target_host, current_target_tmp_dir)
 

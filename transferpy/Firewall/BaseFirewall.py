@@ -1,25 +1,35 @@
-#!/usr/bin/python3
-import os
+"""Base file which contains the common methods to handle the firewall"""
 
 from transferpy.Exceptions import TempDeletionError, FirewallError
 
+from abc import ABC, abstractmethod
+import os
 
-class Firewall(object):
-    """Class for Transferer firewall related command execution"""
-    def __init__(self, target_host, remote_execution, parent_tmp_dir='/tmp'):
-        """
-        Initialize the instance variables.
 
-        :param target_host: host address for port open/close
-        :param remote_execution: remote execution helper
-        """
+class BaseFirewall(ABC):
+    """
+    Abstract base for firewall implementations working against a remote host.
+    Implementations must define open() and close() at minimum.
+    """
+
+    def __init__(self, target_host, remote_execution, parent_tmp_dir="/tmp"):
         self.target_host = target_host
-        self.target_port = 0
         self.remote_executor = remote_execution
+        self.parent_tmp_dir = parent_tmp_dir
+
+        self.target_port = 0
         self.search_start_port = 4400
         self.search_end_port = 4500
-        self.parent_tmp_dir = parent_tmp_dir
         self.reserve_port_dir_name = None
+
+    def run_command(self, command):
+        """
+        Executes command on the target host.
+
+        :param command: command to run
+        :return: execution result (returncode, stdout, stderr)
+        """
+        return self.remote_executor.run(self.target_host, command)
 
     @property
     def find_used_ports_command(self):
@@ -63,63 +73,6 @@ class Firewall(object):
         if result.returncode != 0:
             raise Exception('failed to kill process based on the port {} on {}'
                             .format(target_port, self.target_host))
-
-    def run_command(self, command):
-        """
-        Executes command on the target host.
-
-        :param command: command to run
-        :return: execution result (returncode, stdout, stderr)
-        """
-        return self.remote_executor.run(self.target_host, command)
-
-    def open(self, source_host, target_port):
-        """
-        Opens target port on iptables of target host.
-
-        :param source_host: sender host
-        :param target_port: port to be opened
-        :return: raises exception if not successful
-        """
-        # If target port is 0, find a free port automatically
-        # else try to reserve the given port for the transfer
-        if target_port == 0:
-            target_port = self.find_available_port()
-        elif not self.reserve_port(target_port):
-            raise ValueError("ERROR: The given port {} is not available on {}"
-                             .format(target_port, self.target_host))
-        self.target_port = target_port
-
-        command = ['/sbin/iptables', '-A', 'INPUT', '-p', 'tcp', '-s',
-                   '{}'.format(source_host),
-                   '--dport', '{}'.format(target_port),
-                   '-j', 'ACCEPT']
-        result = self.run_command(command)
-        if result.returncode != 0:
-            if not self.unreserve_port(target_port):
-                raise TempDeletionError(
-                    'iptables execution and temporary lock dir {} deletion failed'.format(
-                        self.reserve_port_dir_name))
-            raise FirewallError('iptables execution failed')
-        return target_port
-
-    def close(self, source_host):
-        """
-        Closes target port on iptables of target host.
-
-        :param source_host: sender host
-        :param target_port: port to be closed
-        :return: remote run exit code, successful(0)
-        """
-        command = ['/sbin/iptables', '-D', 'INPUT', '-p', 'tcp', '-s',
-                   '{}'.format(source_host),
-                   '--dport', '{}'.format(self.target_port),
-                   '-j', 'ACCEPT']
-        result = self.run_command(command)
-        if not self.unreserve_port(self.target_port):
-            print('WARNING: {} temporary directory could not be deleted'
-                  .format(self.reserve_port_dir_name))
-        return result.returncode
 
     def reserve_port(self, target_port):
         """
@@ -176,6 +129,33 @@ class Firewall(object):
             raise ValueError("ERROR: Could not find a free port on {}".format(self.target_host))
         return port
 
+    def firewall_error(self, firewall_type="unknown"):
+        """Raises a firewall error, but tries to cleanup first"""
+        # try to cleanup reservation before raising
+        self.cleanup(firewall_type)
+        raise FirewallError(f"ERROR: {firewall_type} firewall execution failed")
+
+    def cleanup(self, firewall_type="unknown"):
+        """Cleanup temporary files"""
+        if not self.unreserve_port(self.target_port):
+            raise TempDeletionError(
+                f"WARNING: {firewall_type} temporary lock dir {self.reserve_port_dir_name} deletion failed"
+            )
+
     def __del__(self):
         """Destructor"""
         pass
+
+    @abstractmethod
+    def open(self, source_host, target_port):
+        """
+        Open traffic from source_host to target_port on target_host.
+        If target_port == 0, choose and reserve an available port and return it.
+        Raise on failure.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def close(self, source_host):
+        """Close/undo whatever open() did. Return an integer exit code (0 on success)."""
+        raise NotImplementedError

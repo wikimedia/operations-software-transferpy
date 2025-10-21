@@ -16,7 +16,7 @@ class CommandReturn:
 
 class RemoteExecution(metaclass=abc.ABCMeta):
     """
-    Fully-abstract class that defines the interface for implementable remote
+    Abstract class that defines the interface for implementable remote
     execution methods.
     """
 
@@ -26,7 +26,7 @@ class RemoteExecution(metaclass=abc.ABCMeta):
 
         :param options: dictionary of options
         """
-        pass
+        self.options = options
 
     @abc.abstractmethod
     def run(self, host, command):

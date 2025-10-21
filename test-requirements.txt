@@ -1,4 +1,5 @@
-flake8
-nose
-coverage
 clustershell
+coverage
+flake8
+pytest
+pytest-cov
