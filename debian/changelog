@@ -1,3 +1,12 @@
+transferpy (1.2+deb12u1) bookworm; urgency=medium
+
+  * Rebuild for bookworm
+  * Add support to nftables and no firewall host setups
+  * Moved test runs to pytest
+  * Update unit tests and documentation accordingly
+
+ -- jynus <jcrespo@wikimedia.org>  Wed, 22 Oct 2025 17:04:48 +0200
+
 transferpy (1.1+deb11u1) bullseye; urgency=medium
 
   * Fixed security issue where arbitrary execution

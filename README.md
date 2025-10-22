@@ -1,5 +1,7 @@
 transferpy is a Python 3 framework and command-line utility intended to efficiently move large files or directory trees between WMF production hosts, as well as to provide a low-level tool to backup and recover MySQL/MariaDB servers.
 
+transferpy handles the firewall automatically, opening and closing a hole with iptables or nftables if needed, not requiring it being open or having an ssh or other service open all the time. It can also handle encryption and checksuming efficiently.
+
 ## Dependencies
 
 Some dependencies are required in order to run the scripts and the tests. The easiest way to work is by using a virtualenv:
@@ -57,6 +59,7 @@ tox -e sphinx
 To generate and install the Debian package
 
 ```
+dch  # to add new changelog entry
 debuild -b -us -uc
 sudo dpkg -i ../transferpy_0.1_amd64.deb
 ```

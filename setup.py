@@ -4,18 +4,19 @@ from setuptools import setup
 setup(
     name='transferpy',
     description='Fast tool for transferring files',
-    version='1.1',
-    url='',
+    version='1.2',
+    url='https://doc.wikimedia.org/transferpy/',
     packages=(
         'transferpy',
-        'transferpy.RemoteExecution'
+        'transferpy.RemoteExecution',
+        'transferpy.Firewall',
     ),
     install_requires=[
         'cumin',
     ],
     tests_require=[
         'flake8',
-        'nose',
+        'pytest',
         'coverage',
     ],
     extras_require={

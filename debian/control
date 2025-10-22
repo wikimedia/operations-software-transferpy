@@ -12,13 +12,15 @@ X-Python3-Version: >= 3.2
 
 Package: transferpy
 Architecture: any
-Depends: ${python3:Depends}, ${misc:Depends}, net-tools, netcat-traditional | netcat-openbsd,
- iptables
-Recommends: mariadb-backup | wmf-mariadb106
+Depends: ${python3:Depends}, ${misc:Depends}
+Recommends: mariadb-backup | wmf-mariadb1011, clustershell, pigz, openssl,
+ netcat-openbsd | netcat-traditional
 Description: Tool that can move large files over the network and backup mariadb servers
  transferpy is a Python 3 framework and command-line utility 
  intended to efficiently move large files or directory trees 
  between WMF production hosts, as well as to provide a low-level 
  tool to backup and recover MySQL/MariaDB servers.
  .
- This package uses and depends on Python 3 libraries.
+ This package uses and depends on Python 3 libraries and cumin. The servers it uses
+ over the network require, additionally, the following binaries: pigz, openssl,
+ xtrabackup and nc.
