@@ -51,7 +51,7 @@ class CuminExecution(RemoteExecution):
             return command
         return " ".join(command)
 
-    def run(self, host, command):
+    def run(self, host, command) -> CommandReturn:
         """
         Runs syncronously a simple command on the given remote host. It waits for it to finish
         before continuing, and returns a CommandReturn object with the return_code property based

@@ -687,6 +687,45 @@ class Transferer:
         if target_tmp_dir:
             self.attempt_temp_deletion(target_host, target_tmp_dir, 'dir')
 
+    def handle_transfer_to_one_host(self, target_host: str, target_path: str, wait_for_source_checksum: bool) -> int:
+        """
+        Perform all per-host operations: firewall open, origin checksum, actual copy,
+        target checksum, after transfer checks, and firewall close
+        :returns: 0 on success, other on error
+        """
+        try:
+            self.firewall = get_firewall(target_host, self.remote_executor)
+            port = self.firewall.open(self.source_host, self.options.get('port'))
+            self.target_tmp_dir = self.firewall.reserve_port_dir_name
+            # Lets delete the lock suffix since the dir is not actually meant
+            # for locking (It also resolves the problem of trying to make
+            # the same dir twice in case of same source and target host).
+            if self.options['parallel_checksum'] or (self.options['checksum'] and wait_for_source_checksum):
+                self.source_tmp_dir = self.target_tmp_dir.rsplit('.', 1)[0]
+                self.create_temp_paths(self.target_tmp_dir)
+        except (ValueError, FirewallError, TempDeletionError) as ex:
+            self.logger.error("%s", ex)
+            return -1
+
+        if self.options['checksum'] and wait_for_source_checksum:
+            # Calculate the checksum in another process
+            command = self.calculate_checksum_command(self.source_host, self.source_path)
+            job = self.remote_executor.start_job(self.source_host, command)
+
+        exitcode = self.copy_to(target_host, target_path, port)
+
+        if self.options['checksum']:
+            self.remote_executor.wait_job(self.source_host, job)
+            self.checksum = self.read_checksum(self.source_host, self.parallel_checksum_source_path)
+            self.remove_temp_paths()
+            wait_for_source_checksum = False
+        checks_result = self.after_transfer_checks(exitcode, target_host, target_path)
+        if self.firewall.close(self.source_host) != 0:
+            self.logger.warning('Firewall\'s temporary rule could not be deleted')
+        del self.firewall
+
+        return checks_result
+
     def run(self):
         """
         Starts the transference of the file (or the directory and all its contents) given on
@@ -697,69 +736,47 @@ class Transferer:
         # pre-execution sanity checks
         try:
             self.sanity_checks()
-        except ValueError as ex:
+        except (ValueError, OverwriteError, NotFoundError, FreeDiskSpaceError) as ex:
             self.logger.error("%s", ex)
             return [-1]
 
         # stop slave if requested
         if self.options.get('stop_slave', False):
-            result = self.mariadb.stop_replication(self.source_host, self.source_path)
-            if result != 0:
+            mariadb_result = self.mariadb.stop_replication(self.source_host, self.source_path)
+            if mariadb_result != 0:
                 self.logger.error("Stop slave failed")
                 return [-2]
 
-        self.logger.info('About to transfer %s from %s to %s:%s (%s bytes).',
-                         self.source_path, self.source_host,
-                         self.target_hosts, self.target_paths,
-                         self.original_size)
+        self.logger.info(
+            f'About to transfer {self.source_path} from {self.source_host} to '
+            f'{self.target_hosts}:{self.target_paths} ({self.original_size} bytes).'
+        )
 
         transfer_sucessful = []
-        wait_for_source_checksum = True
         # actual transfer process- this is done serially until we implement a
         # multicast-like process
         current_target_host = None
-        current_target_tmp_dir = None
+        current_target_path = None
+        self.target_tmp_dir = None
+        wait_for_source_checksum = True
         try:
-            for target_host, target_path in zip(self.target_hosts, self.target_paths):
-                current_target_host = target_host
-                try:
-                    self.firewall = get_firewall(target_host, self.remote_executor)
-                    port = self.firewall.open(self.source_host, self.options['port'])
-                    current_target_tmp_dir = self.firewall.reserve_port_dir_name
-                    # Lets delete the lock suffix since the dir is not actually meant
-                    # for locking (It also resolves the problem of trying to make
-                    # the same dir twice in case of same source and target host).
-                    if self.options['parallel_checksum'] or (self.options['checksum'] and wait_for_source_checksum):
-                        self.source_tmp_dir = current_target_tmp_dir.rsplit('.', 1)[0]
-                        self.create_temp_paths(current_target_tmp_dir)
-                except (ValueError, FirewallError, TempDeletionError) as ex:
-                    self.logger.error("%s", ex)
-                    return [-1]
-
-                if self.options['checksum'] and wait_for_source_checksum:
-                    # Calculate the checksum in another process
-                    command = self.calculate_checksum_command(self.source_host, self.source_path)
-                    job = self.remote_executor.start_job(self.source_host, command)
-
-                result = self.copy_to(target_host, target_path, port)
-
-                if self.options['checksum'] and wait_for_source_checksum:
-                    self.remote_executor.wait_job(self.source_host, job)
-                    self.checksum = self.read_checksum(self.source_host, self.parallel_checksum_source_path)
-                    self.remove_temp_paths()
-                    wait_for_source_checksum = False
-                transfer_sucessful.append(self.after_transfer_checks(result,
-                                                                     target_host,
-                                                                     target_path))
-                if self.firewall.close(self.source_host) != 0:
-                    self.logger.warning('Firewall\'s temporary rule could not be deleted')
-                del self.firewall
+            for current_target_host, current_target_path in zip(self.target_hosts, self.target_paths):
+                result = self.handle_transfer_to_one_host(current_target_host,
+                                                          current_target_path,
+                                                          wait_for_source_checksum)
+                if result != 0:
+                    self.logger.error(
+                        f"Transfer from {self.source_host} to {current_target_host}"
+                        f"({current_target_path}) failed."
+                    )
+                transfer_sucessful.append(result)
+                wait_for_source_checksum = False  # only wait the first time
         finally:
-            self.clean_all_temps(current_target_host, current_target_tmp_dir)
+            self.clean_all_temps(current_target_host, self.target_tmp_dir)
 
         if self.options.get('stop_slave', False):
-            result = self.mariadb.start_replication(self.source_host, self.source_path)
-            if result != 0:
+            mariadb_result = self.mariadb.start_replication(self.source_host, self.source_path)
+            if mariadb_result != 0:
                 self.logger.error("Start slave failed")
                 return [-3]
 
