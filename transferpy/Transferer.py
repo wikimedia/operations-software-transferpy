@@ -222,9 +222,9 @@ class Transferer:
     def dir_is_empty(self, directory, host):
         """
         Returns True if the given directory path is really a directory that
-        exists, TODO: listing access is available and it is empty.
+        exists and it is empty.
         """
-        command = ['test', '-d', directory]
+        command = self.run_with_bash(f'test -d {directory} && find {directory} -mindepth 1 -maxdepth 1 -exec false {{}} + 2>/dev/null')
         result = self.run_command(host, command)
         return result.returncode == 0
 

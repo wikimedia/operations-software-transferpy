@@ -283,7 +283,7 @@ class TestTransferer(unittest.TestCase):
     def test_dir_is_empty(self):
         """Test dir_is_empty"""
         directory = 'dir'
-        command = ['test', '-d', 'dir']
+        command = ['/bin/bash', '-c', '"test -d dir && find dir -mindepth 1 -maxdepth 1 -exec false {} + 2>/dev/null"']
         self.transferer.dir_is_empty(directory, 'source')
         self.executor.run.assert_called_once_with('source', command)
 
