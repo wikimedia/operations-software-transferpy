@@ -295,7 +295,7 @@ class Transferer:
         Returns the netcat command used on the source host, including the target host and
         the target port.
         """
-        netcat_send_command = f'| /bin/nc -q 0 -w 300 {target_host} {port}'
+        netcat_send_command = f'| /bin/nc -4 -q 0 -w 300 {target_host} {port}'
 
         return netcat_send_command
 
@@ -304,7 +304,7 @@ class Transferer:
         Returns the netcat command used to listen for dataon the target host, given
         the target port.
         """
-        netcat_listen_command = f'/bin/nc -l -w 300 -p {port}'
+        netcat_listen_command = f'/bin/nc -4 -l -w 300 -p {port}'
 
         return netcat_listen_command
 
@@ -720,7 +720,10 @@ class Transferer:
             self.remove_temp_paths()
             wait_for_source_checksum = False
         checks_result = self.after_transfer_checks(exitcode, target_host, target_path)
-        if self.firewall.close(self.source_host) != 0:
+        try:
+            if self.firewall.close(self.source_host) != 0:
+                self.logger.warning('Firewall\'s temporary rule could not be deleted')
+        except TempDeletionError:
             self.logger.warning('Firewall\'s temporary rule could not be deleted')
         del self.firewall
 

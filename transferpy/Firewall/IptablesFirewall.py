@@ -26,7 +26,7 @@ class IptablesFirewall(BaseFirewall):
         command = [
             '/sbin/iptables', '-A', 'INPUT', '-p', 'tcp',
             '-s', f'{source_host}',
-            '--dport', f'{target_port}',
+            '--dport', f'{self.target_port}',
             '-j', 'ACCEPT'
         ]
         result = self.run_command(command)

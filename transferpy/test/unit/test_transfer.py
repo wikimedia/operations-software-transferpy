@@ -319,14 +319,14 @@ class TestTransferer(unittest.TestCase):
         """Test netcat_send_command"""
         target_host = 'source'
         port = 4400
-        expect_command = '| /bin/nc -q 0 -w 300 {} {}'.format(target_host, port)
+        expect_command = '| /bin/nc -4 -q 0 -w 300 {} {}'.format(target_host, port)
         actual_command = self.transferer.netcat_send_command(target_host, port)
         self.assertEqual(expect_command, actual_command)
 
     def test_netcat_listen_command(self):
         """Test netcat_listen_command"""
         port = 4400
-        expect_command = '/bin/nc -l -w 300 -p {}'.format(port)
+        expect_command = '/bin/nc -4 -l -w 300 -p {}'.format(port)
         actual_command = self.transferer.netcat_listen_command(port)
         self.assertEqual(expect_command, actual_command)
 
