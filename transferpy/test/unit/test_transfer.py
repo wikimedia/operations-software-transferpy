@@ -178,8 +178,8 @@ class TestTransferer(unittest.TestCase):
             self.options['checksum'] = False
             #  Return value should be anything other than 0 for the if block to execute
             mocked_stop_replication.return_value = 1
-            mocked_sanity_check.called_once()
             command = self.transferer.run()
+            mocked_sanity_check.assert_called_once()
             self.assertTrue(isinstance(command, list))
 
     def test_run_successfully(self):
@@ -199,8 +199,8 @@ class TestTransferer(unittest.TestCase):
             mocked_copy_to.return_value = 0
             mocked_after_transfer_checks.return_value = 0
             mocked_start_replication.return_value = 0
-            mocked_sanity_check.called_once()
             command = self.transferer.run()
+            mocked_sanity_check.assert_called_once()
             self.assertTrue(isinstance(command, list))
 
     def test_run_start_slave(self):
@@ -228,9 +228,9 @@ class TestTransferer(unittest.TestCase):
             mocked_after_transfer_checks.return_value = 0
             # Return value should be anything other than 0
             # for this if block to execute
-            mocked_start_replication.return_value = 1
-            mocked_sanity_check.called_once()
             command = self.transferer.run()
+            mocked_start_replication.return_value = 1
+            mocked_sanity_check.assert_called_once()
             self.assertTrue(isinstance(command, list))
 
     def test_copy_to_success(self):
