@@ -1,15 +1,16 @@
 """Tests for transfer.py class."""
-import os
-import sys
-import logging
-import unittest
-from unittest.mock import patch, MagicMock
-
 from transferpy.Transferer import Transferer
 from transferpy.test.utils import hide_stderr
 from transferpy.transfer import option_parse, \
     assign_default_options, configparser, parse_configurations, \
     split_target
+
+import logging
+import os
+import shlex
+import sys
+import unittest
+from unittest.mock import patch, MagicMock
 
 
 class TestTransferer(unittest.TestCase):
@@ -33,23 +34,43 @@ class TestTransferer(unittest.TestCase):
     def test_remote_execution_injection(self):
         bad_transferer = Transferer('$PS1', '$(ls /)',  ['target `ls`'], ['~/path'], {})
         self.assertEqual(bad_transferer.source_host, "'$PS1'")
-        self.assertEqual(bad_transferer.source_path, "'$(ls /)'")
+        self.assertEqual(bad_transferer.source_path, "$(ls /)")  # paths are not escaped here
         self.assertEqual(bad_transferer.target_hosts, ["'target `ls`'"])
-        self.assertEqual(bad_transferer.target_paths, ["'~/path'"])
+        self.assertEqual(bad_transferer.target_paths, ['~/path'])  # paths are not escaped here
 
     def test_is_dir(self):
         path = 'path'
         self.transferer.is_dir('host', path)
-
         args = self.executor.run.call_args[0]
         self.assertEqual(['test', '-d', 'path'], args[1])
 
-    def test_file_exists(self):
-        file = 'path'
-        self.transferer.file_exists('host', file)
+        # dir with spaces
+        path = 'foo bar'
+        self.transferer.is_dir('host', path)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['test', '-d', "'foo bar'"], args[1])
 
+        # executable
+        path = 'foo\'; /bin/true'
+        self.transferer.is_dir('host', path)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['test', '-d', '\'foo\'"\'"\'; /bin/true\''], args[1])
+
+    def test_file_exists(self):
+        a_file = 'path'
+        self.transferer.file_exists('host', a_file)
         args = self.executor.run.call_args[0]
         self.assertEqual(['test', '-e', 'path'], args[1])
+
+        a_file = 'foo bar'
+        self.transferer.file_exists('host', a_file)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['test', '-e', "'foo bar'"], args[1])
+
+        a_file = 'foo\'; /bin/true'
+        self.transferer.file_exists('host', a_file)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['test', '-e', '\'foo\'"\'"\'; /bin/true\''], args[1])
 
     def test_calculate_checksum_for_dir(self):
         self.transferer.source_is_dir = True
@@ -57,10 +78,29 @@ class TestTransferer(unittest.TestCase):
         self.executor.run.return_value.returncode = 0
 
         self.transferer.calculate_checksum('host', 'path')
-
         args = self.executor.run.call_args[0]
         self.assertIn('find', args[1][-1])
         self.assertIn('md5sum', args[1][-1])
+
+        self.transferer.calculate_checksum('host', '/tmp/foo bar')
+        args = self.executor.run.call_args[0]
+        self.assertEqual(
+            [
+                '/bin/bash', '-c',
+                '"cd /tmp && /usr/bin/find \'foo bar\' -type f -exec /usr/bin/md5sum \\{\\} \\; "',
+            ],
+            args[1]
+        )
+
+        self.transferer.calculate_checksum('host', '/tmp/foo\'; /bin/true')
+        args = self.executor.run.call_args[0]
+        self.assertEqual(
+            [
+                '/bin/bash', '-c',
+                '"cd \'/tmp/foo\'"\'"\'; /bin\' && /usr/bin/find true -type f -exec /usr/bin/md5sum \\{\\} \\; "',
+            ],
+            args[1]
+        )
 
     def test_calculate_checksum_for_file(self):
         self.transferer.source_is_dir = False
@@ -68,31 +108,65 @@ class TestTransferer(unittest.TestCase):
         self.executor.run.return_value.returncode = 0
 
         self.transferer.calculate_checksum('host', 'path')
-
         args = self.executor.run.call_args[0]
         self.assertNotIn('find', args[1][-1])
         self.assertIn('md5sum', args[1][-1])
 
+        self.transferer.calculate_checksum('host', '/tmp/foo bar')
+        args = self.executor.run.call_args[0]
+        self.assertEqual(
+            [
+                '/bin/bash', '-c',
+                '"cd /tmp && /usr/bin/md5sum \'foo bar\' "',
+            ],
+            args[1]
+        )
+
+        self.transferer.calculate_checksum('host', '/tmp/foo\'; /bin/true')
+        args = self.executor.run.call_args[0]
+        self.assertEqual(
+            [
+                '/bin/bash', '-c',
+                '"cd \'/tmp/foo\'\"\'"\'; /bin\' && /usr/bin/md5sum true "',
+            ],
+            args[1]
+        )
+
     def test_has_available_disk_space(self):
         self.executor.run.return_value = MagicMock()
         self.executor.run.return_value.returncode = 0
-
         size = 100
-        self.executor.run.return_value.stdout = str(size + 1)
 
+        self.executor.run.return_value.stdout = str(size)
         result = self.transferer.has_available_disk_space('host', 'path', size)
-
         self.assertTrue(result)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['/bin/bash', '-c', '"df --block-size=1 --output=avail path | /usr/bin/tail -n 1"'], args[1])
+
+        self.executor.run.return_value.stdout = str(size + 1)
+        result = self.transferer.has_available_disk_space('host', 'path', size)
+        self.assertTrue(result)
+
+        self.executor.run.return_value.stdout = str(size - 1)
+        result = self.transferer.has_available_disk_space('host', 'foo bar', size)
+        self.assertFalse(result)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['/bin/bash', '-c', '"df --block-size=1 --output=avail \'foo bar\' | /usr/bin/tail -n 1"'], args[1])
 
     def test_disk_usage(self):
         self.executor.run.return_value = MagicMock()
         self.executor.run.return_value.returncode = 0
         size = 1024
-        self.executor.run.return_value.stdout = "{} path".format(size)
 
+        self.executor.run.return_value.stdout = f"{size} path"
         result = self.transferer.disk_usage('host', 'path')
-
         self.assertEqual(size, result)
+
+        self.executor.run.return_value.stdout = f"{size} foo bar"
+        result = self.transferer.disk_usage('host', 'foo bar')
+        self.assertEqual(size, result)
+        args = self.executor.run.call_args[0]
+        self.assertEqual(['/usr/bin/du', '--bytes', '--summarize', "'foo bar'"], args[1])
 
     def test_compress_command_compressing(self):
         self.options['compress'] = True
@@ -156,12 +230,19 @@ class TestTransferer(unittest.TestCase):
         self.assertEqual('', trgt_command)
 
         self.options['parallel_checksum'] = True
+        self.transferer.parallel_checksum_source_path = '/tmp/checksum'
+        self.transferer.parallel_checksum_target_path = '/tmp/checksum2'
         src_command = self.transferer.parallel_checksum_source_command
         trgt_command = self.transferer.parallel_checksum_target_command
-        self.assertEqual('| tee >(md5sum > {})'.format(
-            self.transferer.parallel_checksum_source_path), src_command)
-        self.assertEqual('| tee >(md5sum > {})'.format(
-            self.transferer.parallel_checksum_target_path), trgt_command)
+        self.assertEqual(f'| tee >(md5sum > {self.transferer.parallel_checksum_source_path})', src_command)
+        self.assertEqual(f'| tee >(md5sum > {self.transferer.parallel_checksum_target_path})', trgt_command)
+
+        self.transferer.parallel_checksum_source_path = '/tmp/checksum 1'
+        self.transferer.parallel_checksum_target_path = '/tmp/checksum 2'
+        src_command = self.transferer.parallel_checksum_source_command
+        trgt_command = self.transferer.parallel_checksum_target_command
+        self.assertEqual(f'| tee >(md5sum > {shlex.quote(self.transferer.parallel_checksum_source_path)})', src_command)
+        self.assertEqual(f'| tee >(md5sum > {shlex.quote(self.transferer.parallel_checksum_target_path)})', trgt_command)
 
     def test_run_sanity_checks_failing(self):
         """Test case for Transferer.run function which simulates sanity check failure."""
@@ -274,6 +355,16 @@ class TestTransferer(unittest.TestCase):
         self.transferer.is_socket('source', path)
         self.executor.run.assert_called_once_with('source', command)
 
+        path = 'foo bar'
+        command = ['test', '-S', "'foo bar'"]
+        self.transferer.is_socket('source', path)
+        self.executor.run.assert_called_with('source', command)
+
+        path = 'foo;\' bar'
+        command = ['test', '-S', '\'foo;\'"\'"\' bar\'']
+        self.transferer.is_socket('source', path)
+        self.executor.run.assert_called_with('source', command)
+
     def test_host_exists(self):
         """Test host_exists"""
         command = ['/bin/true']
@@ -287,10 +378,22 @@ class TestTransferer(unittest.TestCase):
         self.transferer.dir_is_empty(directory, 'source')
         self.executor.run.assert_called_once_with('source', command)
 
+        directory = 'foo bar'
+        command = ['/bin/bash', '-c', '"test -d \'foo bar\' && find \'foo bar\' -mindepth 1 -maxdepth 1 -exec false {} + 2>/dev/null"']
+        self.transferer.dir_is_empty(directory, 'source')
+        self.executor.run.assert_called_with('source', command)
+
+        directory = 'foo;\' bar'
+        command = ['/bin/bash', '-c', '"test -d \'foo;\'"\'"\' bar\' && find \'foo;\'"\'"\' bar\' -mindepth 1 -maxdepth 1 -exec false {} + 2>/dev/null"']
+        self.transferer.dir_is_empty(directory, 'source')
+        self.executor.run.assert_called_with('source', command)
+
     def test_parallel_checksum_source_command(self):
         """Test parallel_checksum_source_command"""
         self.options['parallel_checksum'] = True
-        checksum_command = '| tee >(md5sum > {})'.format(self.transferer.parallel_checksum_source_path)
+        self.assertEqual(self.transferer.parallel_checksum_source_path, None)
+        self.transferer.parallel_checksum_source_path = '/tmp/checksum'
+        checksum_command = '| tee >(md5sum > /tmp/checksum)'
         self.assertEqual(checksum_command, self.transferer.parallel_checksum_source_command)
         # Make parallel_checksum False and try again
         self.options['parallel_checksum'] = False
@@ -299,7 +402,8 @@ class TestTransferer(unittest.TestCase):
     def test_parallel_checksum_target_command(self):
         """Test parallel_checksum_target_command"""
         self.options['parallel_checksum'] = True
-        checksum_command = '| tee >(md5sum > {})'.format(self.transferer.parallel_checksum_target_path)
+        self.transferer.parallel_checksum_target_path = '/tmp/checksum'
+        checksum_command = '| tee >(md5sum > /tmp/checksum)'
         self.assertEqual(checksum_command, self.transferer.parallel_checksum_target_command)
         # Make parallel_checksum False and try again
         self.options['parallel_checksum'] = False
@@ -315,18 +419,23 @@ class TestTransferer(unittest.TestCase):
         self.executor.run.assert_called_once_with('source', command)
         self.assertEqual(checksum, "checksum - path")
 
+        path = 'foo bar'
+        command = ['/bin/bash', '-c', '"/bin/cat < \'foo bar\' && /bin/rm \'foo bar\'"']
+        checksum = self.transferer.read_checksum('source', path)
+        self.executor.run.assert_called_with('source', command)
+
     def test_netcat_send_command(self):
         """Test netcat_send_command"""
         target_host = 'source'
         port = 4400
-        expect_command = '| /bin/nc -4 -q 0 -w 300 {} {}'.format(target_host, port)
+        expect_command = f'| /bin/nc -4 -q 0 -w 300 {target_host} {port}'
         actual_command = self.transferer.netcat_send_command(target_host, port)
         self.assertEqual(expect_command, actual_command)
 
     def test_netcat_listen_command(self):
         """Test netcat_listen_command"""
         port = 4400
-        expect_command = '/bin/nc -4 -l -w 300 -p {}'.format(port)
+        expect_command = f'/bin/nc -4 -l -w 300 -p {port}'
         actual_command = self.transferer.netcat_listen_command(port)
         self.assertEqual(expect_command, actual_command)
 
@@ -370,12 +479,15 @@ class TestTransferer(unittest.TestCase):
     def test_xtrabackup_command(self):
         """Test xtrabackup_command"""
         self.transferer.source_path = 'mysqld.sock'
+        user = 'root'
         socket = self.transferer.source_path
         datadir = self.transferer.get_datadir_from_socket(socket)
-        expected_command = 'xtrabackup --backup --target-dir /tmp ' \
-                           '--user {} --socket={} --close-files --datadir={} --parallel={} ' \
-                           '--stream=xbstream --slave-info --skip-ssl'.\
-            format('root', socket, datadir, 16)
+        threads = 16
+        expected_command = (
+            'xtrabackup --backup --target-dir /tmp '
+            f'--user={user} --socket={socket} --close-files --datadir={datadir} --parallel={threads} '
+            '--stream=xbstream --slave-info --skip-ssl'
+        )
         actual_command = self.transferer.xtrabackup_command
         self.assertEqual(expected_command, actual_command)
 
@@ -507,14 +619,15 @@ class TestArgumentParsing(unittest.TestCase):
         src_path = 'source_path'
         trg1 = 'target1'
         trg1_path = 'dst_path1'
-        trg2 = 'target2'
-        trg2_path = 'dst_path2'
-        test_args = ['transfer',
-                     '{}:{}'.format(src, src_path),
-                     '{}:{}'.format(trg1, trg1_path),
-                     '{}:{}'.format(trg2, trg2_path)]
-        (source_host, source_path, target_hosts, target_paths, other_options)\
-            = self.option_parse(test_args)
+        trg2 = 'target 2'
+        trg2_path = 'dst_path 2'
+        test_args = [
+            'transfer',
+            f'{src}:{src_path}',
+            f'{trg1}:{trg1_path}',
+            f'{trg2}:{trg2_path}'
+        ]
+        (source_host, source_path, target_hosts, target_paths, other_options) = self.option_parse(test_args)
 
         self.assertEqual(src, source_host)
         self.assertEqual(src_path, source_path)
@@ -734,8 +847,7 @@ class TestArgumentParsing(unittest.TestCase):
                 '--port', 0, '--type', 'xtrabackup',
                 '--no-compress', '--no-encrypt', '--no-checksum',
                 '--stop-slave', '--verbose', '--config', config_file]
-        (source_host, source_path, target_hosts, target_paths, other_options) = \
-            self.option_parse(args)
+        (source_host, source_path, target_hosts, target_paths, other_options) = self.option_parse(args)
         os.remove(config_file)
         # Command line arguments should get reflected
         self.assertEqual(other_options['port'], 0)
@@ -761,8 +873,7 @@ class TestArgumentParsing(unittest.TestCase):
                 '--port', 0, '--type', 'xtrabackup',
                 '--no-compress', '--no-encrypt', '--no-checksum',
                 '--stop-slave', '--config', config_file]
-        (source_host, source_path, target_hosts, target_paths, other_options) = \
-            self.option_parse(args)
+        (source_host, source_path, target_hosts, target_paths, other_options) = self.option_parse(args)
         os.remove(config_file)
         # The verbose is not mentioned anywhere, so default False should be taken
         self.assertFalse(other_options['verbose'])
@@ -782,8 +893,7 @@ class TestArgumentParsing(unittest.TestCase):
         # But command line has no specification
         args = ['transfer', 'source:path', 'target:path',
                 '--stop-slave', '--config', config_file]
-        (source_host, source_path, target_hosts, target_paths, other_options) = \
-            self.option_parse(args)
+        (source_host, source_path, target_hosts, target_paths, other_options) = self.option_parse(args)
         os.remove(config_file)
         # The parallel-checksum should be True
         self.assertFalse(other_options['parallel_checksum'])
@@ -806,8 +916,7 @@ class TestArgumentParsing(unittest.TestCase):
         args = ['transfer', 'source:path', 'target:path',
                 '--parallel-checksum', '--stop-slave',
                 '--config', config_file]
-        (source_host, source_path, target_hosts, target_paths, other_options) = \
-            self.option_parse(args)
+        (source_host, source_path, target_hosts, target_paths, other_options) = self.option_parse(args)
         os.remove(config_file)
         # The parallel-checksum should be True
         self.assertTrue(other_options['parallel_checksum'])

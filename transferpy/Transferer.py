@@ -41,9 +41,9 @@ class Transferer:
     """
     def __init__(self, source_host, source_path, target_hosts, target_paths, options={}):
         self.source_host = shlex.quote(source_host)
-        self.source_path = shlex.quote(source_path)
-        self.target_hosts = [shlex.quote(h) for h in target_hosts]
-        self.target_paths = [shlex.quote(p) for p in target_paths]
+        self.source_path = source_path  # the paths are not escaped beforehand because they can be transformed
+        self.target_hosts = [shlex.quote(t) for t in target_hosts]
+        self.target_paths = target_paths  # the paths are not escaped beforehand because they can be transformed
         self.options = options
         if 'type' not in self.options:  # default transfer type is file/directory transfer
             self.options['type'] = 'file'
@@ -106,7 +106,7 @@ class Transferer:
         Returns true if the given path is a directory and exists on the given host, otherwise
         returns false.
         """
-        command = ['test', '-d', path]
+        command = ['test', '-d', shlex.quote(path)]
         result = self.run_command(host, command)
         return result.returncode == 0
 
@@ -115,7 +115,7 @@ class Transferer:
         Returns true if the given path is a socket and exists on the given host, otherwise
         returns false.
         """
-        command = ['test', '-S', path]
+        command = ['test', '-S', shlex.quote(path)]
         result = self.run_command(host, command)
         return result.returncode == 0
 
@@ -137,7 +137,7 @@ class Transferer:
         Returns true if there is a file or a directory with such path on the remote
         host given.
         """
-        command = ['test', '-e', path]
+        command = ['test', '-e', shlex.quote(path)]
         result = self.run_command(host, command)
         return result.returncode == 0
 
@@ -147,10 +147,10 @@ class Transferer:
         trarget host that the file(s) created are the same as in the source host.
         """
         hash_executable = '/usr/bin/md5sum'
-        parent_dir = os.path.normpath(os.path.join(path, '..'))
-        basename = os.path.basename(os.path.normpath(path))
+        parent_dir = shlex.quote(os.path.normpath(os.path.join(path, '..')))
+        basename = shlex.quote(os.path.basename(os.path.normpath(path)))
         if host == self.source_host and path == self.source_path:
-            checksum_write_command = f' > "{self.parallel_checksum_source_path}"'
+            checksum_write_command = f' > {shlex.quote(self.parallel_checksum_source_path)}'
         else:
             checksum_write_command = ''
         if self.source_is_dir:
@@ -172,12 +172,12 @@ class Transferer:
         the target host. If the checksums are different, it throws an exception. If
         the checkums match, it returns the standard output, if any.
         """
-        self.logger.info('Started checksum calculation for %s:%s', host, path)
+        self.logger.info('Started checksum calculation for %s:%s', host, shlex.quote(path))
         command = self.calculate_checksum_command(host, path)
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise ChecksumError('md5sum execution failed')
-        self.logger.info('Finished checksum calculation for %s:%s', host, path)
+        self.logger.info('Finished checksum calculation for %s:%s', host, shlex.quote(path))
         return result.stdout
 
     def read_checksum(self, host, path):
@@ -186,10 +186,10 @@ class Transferer:
         and then deletes the checksum file. It rises an exception if reading or deleting the file
         errors out.
         """
-        command = self.run_with_bash(f'/bin/cat < {path} && /bin/rm {path}')
+        command = self.run_with_bash(f'/bin/cat < {shlex.quote(path)} && /bin/rm {shlex.quote(path)}')
         result = self.run_command(host, command)
         if result.returncode != 0:
-            raise ChecksumError(f'reading checksum failed for {host}:{path}')
+            raise ChecksumError(f'reading checksum failed for {host}:{shlex.quote(path)}')
         return result.stdout
 
     def has_available_disk_space(self, host, path, size):
@@ -197,11 +197,11 @@ class Transferer:
         Returns true if the disk space available at host on the given path location is larger
         than the provided size, otherwise returns false.
         """
-        command = self.run_with_bash(f'df --block-size=1 --output=avail \"{path}\" | /usr/bin/tail -n 1')
+        command = self.run_with_bash(f'df --block-size=1 --output=avail {shlex.quote(path)} | /usr/bin/tail -n 1')
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise FreeDiskSpaceError('df execution failed')
-        return int(result.stdout) > size
+        return int(result.stdout) >= size
 
     def disk_usage(self, host, path, is_xtrabackup=False):
         """
@@ -213,7 +213,7 @@ class Transferer:
         # Sadly, our .tar.gz s, created with a pigz streaming pipe do not store
         # accurate file sizes, so a minimum number of the size of the tarball
         # will be used instead
-        command = ['/usr/bin/du', '--bytes', '--summarize', f'{path}']
+        command = ['/usr/bin/du', '--bytes', '--summarize', f'{shlex.quote(path)}']
         result = self.run_command(host, command)
         if result.returncode != 0:
             raise FreeDiskSpaceError('du execution failed')
@@ -224,7 +224,10 @@ class Transferer:
         Returns True if the given directory path is really a directory that
         exists and it is empty.
         """
-        command = self.run_with_bash(f'test -d {directory} && find {directory} -mindepth 1 -maxdepth 1 -exec false {{}} + 2>/dev/null')
+        command = self.run_with_bash(
+            f'test -d {shlex.quote(directory)} && find {shlex.quote(directory)} '
+            '-mindepth 1 -maxdepth 1 -exec false {} + 2>/dev/null'
+        )
         result = self.run_command(host, command)
         return result.returncode == 0
 
@@ -270,7 +273,7 @@ class Transferer:
         :return: string with command to make the checksum
         """
         if self.options['parallel_checksum']:
-            checksum_command = f'| tee >(md5sum > {self.parallel_checksum_source_path})'
+            checksum_command = f'| tee >(md5sum > {shlex.quote(self.parallel_checksum_source_path)})'
         else:
             checksum_command = ''
 
@@ -284,7 +287,7 @@ class Transferer:
         :return: string with command to make the checksum
         """
         if self.options['parallel_checksum']:
-            checksum_command = f'| tee >(md5sum > {self.parallel_checksum_target_path})'
+            checksum_command = f'| tee >(md5sum > {shlex.quote(self.parallel_checksum_target_path)})'
         else:
             checksum_command = ''
 
@@ -354,10 +357,12 @@ class Transferer:
         threads = 16
         socket = self.source_path
         datadir = self.get_datadir_from_socket(socket)
-        xtrabackup_command = ('xtrabackup --backup --target-dir /tmp '
-                              f'--user {user} --socket={socket} --close-files --datadir={datadir} --parallel={threads} '
-                              '--stream=xbstream --slave-info --skip-ssl'
-                              )
+        xtrabackup_command = (
+            'xtrabackup --backup --target-dir /tmp '
+            f'--user={shlex.quote(user)} --socket={shlex.quote(socket)} --close-files '
+            f'--datadir={shlex.quote(datadir)} --parallel={threads} '
+            '--stream=xbstream --slave-info --skip-ssl'
+        )
         return xtrabackup_command
 
     @property
@@ -627,7 +632,7 @@ class Transferer:
         :param lock_dir: temporary lock directory at the target host
         :return: None if successful, else Exception
         """
-        command = [f"/bin/mkdir {self.source_tmp_dir}"]
+        command = [f"/bin/mkdir {shlex.quote(self.source_tmp_dir)}"]
         result = self.run_command(self.source_host, command)
         self.parallel_checksum_source_path = os.path.join(self.source_tmp_dir, 'transferrer_source.md5sum')
         self.parallel_checksum_target_path = os.path.join(lock_dir, 'transferrer_target.md5sum')
@@ -642,7 +647,7 @@ class Transferer:
         :return: None
         """
         tmp_dir = self.parallel_checksum_source_path.rsplit('/', 1)[0]
-        command = [f"/bin/rmdir {tmp_dir}"]
+        command = [f"/bin/rmdir {shlex.quote(tmp_dir)}"]
         result = self.run_command(self.source_host, command)
         if result.returncode != 0:
             self.logger.warning('Deletion of temporary directory %s:%s failed.',
@@ -658,9 +663,9 @@ class Transferer:
         """
         if self.file_exists(host, path):
             if file_type == 'dir':
-                command = [f'/bin/rmdir {path}']
+                command = [f'/bin/rmdir {shlex.quote(path)}']
             elif file_type == 'file':
-                command = [f'/bin/rm {path}']
+                command = [f'/bin/rm {shlex.quote(path)}']
             result = self.run_command(host, command)
             if result.returncode != 0:
                 self.logger.error('Failed to delete temporary path %s:%s.', host, path)

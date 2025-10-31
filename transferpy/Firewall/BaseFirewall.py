@@ -7,6 +7,7 @@ from transferpy.RemoteExecution.RemoteExecution import CommandReturn, RemoteExec
 from abc import ABC, abstractmethod
 from typing import List
 import os
+import shlex
 
 
 class BaseFirewall(ABC):
@@ -112,7 +113,7 @@ class BaseFirewall(ABC):
         """
         reserve_port_dir_name = os.path.normpath(
                 os.path.join(self.parent_tmp_dir, 'trnsfr_{}_{}.lock'.format(self.target_host, target_port)))
-        command = ["/bin/mkdir {}".format(reserve_port_dir_name)]
+        command = [f"/bin/mkdir {shlex.quote(reserve_port_dir_name)}"]
         result = self.run_command(command)
         if result.returncode == 0:
             # The trnsfr_target_host_target_port will always be unique at an instance of time
@@ -126,7 +127,7 @@ class BaseFirewall(ABC):
         :param target_port: port to be unreserved
         :return: True if port successfully unreserved
         """
-        command = ["/bin/rmdir {}".format(self.reserve_port_dir_name)]
+        command = [f"/bin/rmdir {shlex.quote(self.reserve_port_dir_name)}"]
         result = self.run_command(command)
         return result.returncode == 0
 

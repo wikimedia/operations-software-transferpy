@@ -1,4 +1,4 @@
-transferpy (1.2+deb12u1) bookworm; urgency=medium
+transferpy (1.2+deb13u1) trixie; urgency=medium
 
   * Rebuild for bookworm
   * Add support to nftables and no firewall host setups
